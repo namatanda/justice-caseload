@@ -1,11 +1,13 @@
+
 "use client";
 
+import React, { useMemo, ComponentProps } from 'react';
 import { Line, LineChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { FolderClock } from 'lucide-react';
 
-const chartData = [
+const initialChartData = [
   { month: "January", cases: 250 },
   { month: "February", cases: 275 },
   { month: "March", cases: 260 },
@@ -17,11 +19,29 @@ const chartData = [
 const chartConfig = {
   cases: {
     label: "Pending Cases",
-    color: "hsl(var(--chart-3))", // Orange accent color
+    color: "hsl(var(--chart-3))",
   },
-};
+} satisfies ComponentProps<typeof ChartContainer>["config"];
 
-export function PendingCasesChart() {
+interface PendingCasesChartProps {
+  selectedCaseType: string;
+  selectedAge: string;
+}
+
+export function PendingCasesChart({ selectedCaseType, selectedAge }: PendingCasesChartProps) {
+  const processedData = useMemo(() => {
+    return initialChartData.map(item => {
+      let adjustedCases = item.cases;
+      if (selectedCaseType !== "all") {
+        adjustedCases *= 0.82;
+      }
+      if (selectedAge !== "all") {
+        adjustedCases *= 0.88;
+      }
+      return { ...item, cases: Math.max(0, Math.round(adjustedCases)) };
+    });
+  }, [selectedCaseType, selectedAge]);
+  
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out rounded-lg">
       <CardHeader>
@@ -29,12 +49,12 @@ export function PendingCasesChart() {
           <FolderClock className="h-6 w-6 text-accent" />
           <CardTitle>Pending Cases Trend</CardTitle>
         </div>
-        <CardDescription>Number of pending cases per month over the last 6 months.</CardDescription>
+        <CardDescription>Number of pending cases per month over the last 6 months. {selectedCaseType !== 'all' || selectedAge !== 'all' ? '(Filtered)' : ''}</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+            <LineChart accessibilityLayer data={processedData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis
                 dataKey="month"
