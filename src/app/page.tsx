@@ -2,8 +2,8 @@
 "use client";
 
 import { OverviewCard } from '@/components/dashboard/overview-card';
-import { FiledCasesChart } from '@/components/dashboard/filed-cases-chart';
-import { ResolvedCasesChart } from '@/components/dashboard/resolved-cases-chart';
+// import { FiledCasesChart } from '@/components/dashboard/filed-cases-chart'; // Removed
+// import { ResolvedCasesChart } from '@/components/dashboard/resolved-cases-chart'; // Removed
 import { PendingCasesChart } from '@/components/dashboard/pending-cases-chart';
 import { JudgeWorkloadChart } from '@/components/dashboard/judge-workload-chart';
 import { FilingsVsResolutionsChart } from '@/components/dashboard/filings-vs-resolutions-chart';
@@ -113,8 +113,8 @@ export default function DashboardPage() {
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <FilingsVsResolutionsChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
-        <FiledCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
-        <ResolvedCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
+        {/* <FiledCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} /> Removed */}
+        {/* <ResolvedCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} /> Removed */}
         <PendingCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
         <JudgeWorkloadChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
       </section>
