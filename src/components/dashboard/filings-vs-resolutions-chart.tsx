@@ -25,6 +25,10 @@ const chartConfig = {
     label: "Resolved Cases",
     color: "hsl(var(--chart-2))",
   },
+  pending: {
+    label: "Pending Cases",
+    color: "hsl(var(--chart-3))",
+  }
 } satisfies ComponentProps<typeof ChartContainer>["config"];
 
 interface FilingsVsResolutionsChartProps {
@@ -51,10 +55,16 @@ export function FilingsVsResolutionsChart({ selectedTimePeriod, selectedCourtRan
         adjustedFiled *= 0.7;
         adjustedResolved *= 0.65;
       }
+      
+      const finalFiled = Math.max(0, Math.round(adjustedFiled));
+      const finalResolved = Math.max(0, Math.round(adjustedResolved));
+      const finalPending = Math.max(0, finalFiled - finalResolved);
+
       return { 
         ...item, 
-        filed: Math.max(0, Math.round(adjustedFiled)),
-        resolved: Math.max(0, Math.round(adjustedResolved)),
+        filed: finalFiled,
+        resolved: finalResolved,
+        pending: finalPending,
       };
     });
   }, [selectedTimePeriod, selectedCourtRank, selectedCourtName]);
@@ -66,9 +76,9 @@ export function FilingsVsResolutionsChart({ selectedTimePeriod, selectedCourtRan
       <CardHeader>
         <div className="flex items-center gap-2">
           <TrendingUp className="h-6 w-6 text-primary" />
-          <CardTitle>Filings vs. Resolutions Trend</CardTitle>
+          <CardTitle>Case Trends: Filings, Resolutions, and Pending</CardTitle>
         </div>
-        <CardDescription>Comparison of new cases filed and cases resolved per month. {isFiltered ? '(Filtered)' : ''}</CardDescription>
+        <CardDescription>Comparison of new cases filed, cases resolved, and pending cases per month. {isFiltered ? '(Filtered)' : ''}</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -90,6 +100,7 @@ export function FilingsVsResolutionsChart({ selectedTimePeriod, selectedCourtRan
               <Legend verticalAlign="top" height={36} />
               <Line type="monotone" dataKey="filed" stroke="var(--color-filed)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-filed)" }} activeDot={{r: 6}} name="Filed Cases" />
               <Line type="monotone" dataKey="resolved" stroke="var(--color-resolved)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-resolved)" }} activeDot={{r: 6}} name="Resolved Cases" />
+              <Line type="monotone" dataKey="pending" stroke="var(--color-pending)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-pending)" }} activeDot={{r: 6}} name="Pending Cases" />
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>
@@ -97,3 +108,4 @@ export function FilingsVsResolutionsChart({ selectedTimePeriod, selectedCourtRan
     </Card>
   );
 }
+
