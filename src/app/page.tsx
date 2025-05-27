@@ -4,7 +4,8 @@
 import { OverviewCard } from '@/components/dashboard/overview-card';
 import { CaseAgeDistributionChart } from '@/components/dashboard/case-age-distribution-chart';
 import { FilingsVsResolutionsChart } from '@/components/dashboard/filings-vs-resolutions-chart';
-import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, Clock, Landmark, CalendarClock, ArrowUpRight } from 'lucide-react'; // Added ArrowUpRight
+import { BacklogTrendsByCourtLevelChart } from '@/components/dashboard/backlog-trends-by-court-level-chart'; // New Import
+import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, Clock, Landmark, CalendarClock, ArrowUpRight, Layers } from 'lucide-react'; // Added ArrowUpRight, Layers
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -46,9 +47,7 @@ export default function DashboardPage() {
     } else {
       setSpecificCourts([]);
     }
-    // Reset specific court name when rank changes, unless it's the initial load or rank is 'all'
     if (selectedCourtRank !== "all") {
-        // Check if current selectedCourtName is valid for the new rank
         const isValidCourtName = courtData[selectedCourtRank]?.some(court => court.value === selectedCourtName);
         if (!isValidCourtName) {
             setSelectedCourtName("all");
@@ -61,13 +60,12 @@ export default function DashboardPage() {
 
   const handleCourtRankChange = (value: string) => {
     setSelectedCourtRank(value);
-    // setSelectedCourtName("all"); // Reset specific court name when rank changes is handled by useEffect
   };
 
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar side="left" collapsible="offcanvas" className="border-r"> {/* Changed collapsible to "offcanvas" */}
+      <Sidebar side="left" collapsible="offcanvas" className="border-r">
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3">
             <Filter className="h-6 w-6 text-primary" />
@@ -136,13 +134,13 @@ export default function DashboardPage() {
           <header className="mb-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <SidebarTrigger className="md:hidden" /> {/* Mobile trigger */}
+                <SidebarTrigger className="md:hidden" />
                 <LayoutDashboard className="h-8 w-8 text-primary" />
                 <h1 className="text-3xl font-bold text-primary">
                   CourtFlow Dashboard
                 </h1>
               </div>
-              <SidebarTrigger className="hidden md:flex" /> {/* Desktop trigger */}
+              <SidebarTrigger className="hidden md:flex" />
             </div>
             <p className="text-muted-foreground mt-1">Key court performance metrics overview.</p>
           </header>
@@ -191,10 +189,16 @@ export default function DashboardPage() {
             />
           </section>
 
-          <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
             <FilingsVsResolutionsChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
             <CaseAgeDistributionChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
           </section>
+
+          <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <BacklogTrendsByCourtLevelChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
+            {/* Add another chart here or leave it for future expansion. This will make the section take full width if only one chart. */}
+          </section>
+
 
           <footer className="mt-12 text-center text-sm text-muted-foreground">
             <p>&copy; {new Date().getFullYear()} CourtFlow. All rights reserved.</p>
@@ -204,4 +208,3 @@ export default function DashboardPage() {
     </SidebarProvider>
   );
 }
-
