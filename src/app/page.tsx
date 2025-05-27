@@ -2,10 +2,10 @@
 "use client";
 
 import { OverviewCard } from '@/components/dashboard/overview-card';
-import { PendingCasesChart } from '@/components/dashboard/pending-cases-chart';
+// import { PendingCasesChart } from '@/components/dashboard/pending-cases-chart'; // Removed
 import { JudgeWorkloadChart } from '@/components/dashboard/judge-workload-chart';
 import { FilingsVsResolutionsChart } from '@/components/dashboard/filings-vs-resolutions-chart';
-import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, TrendingUp, Clock, Landmark } from 'lucide-react';
+import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, Clock, Landmark } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -55,7 +55,7 @@ export default function DashboardPage() {
     } else {
          setSelectedCourtName("all");
     }
-  }, [selectedCourtRank]);
+  }, [selectedCourtRank, selectedCourtName]); // Added selectedCourtName to dependency array to re-evaluate specificCourts if name changes indirectly.
 
 
   const handleCourtRankChange = (value: string) => {
@@ -185,7 +185,7 @@ export default function DashboardPage() {
 
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <FilingsVsResolutionsChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
-            <PendingCasesChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
+            {/* <PendingCasesChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} /> // Removed */}
             <JudgeWorkloadChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
           </section>
 
