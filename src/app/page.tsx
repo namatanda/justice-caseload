@@ -1,11 +1,11 @@
 
 "use client";
 
-import { OverviewCard } from '@/components/dashboard/overview-card';
-// import { PendingCasesChart } from '@/components/dashboard/pending-cases-chart'; // Removed
-import { JudgeWorkloadChart } from '@/components/dashboard/judge-workload-chart';
+import { OverviewCard } from '@/components/dashboard/overview-card'; // Added this line
+// import { JudgeWorkloadChart } from '@/components/dashboard/judge-workload-chart'; // Removed
+import { CaseAgeDistributionChart } from '@/components/dashboard/case-age-distribution-chart'; // Added
 import { FilingsVsResolutionsChart } from '@/components/dashboard/filings-vs-resolutions-chart';
-import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, Clock, Landmark } from 'lucide-react';
+import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, Clock, Landmark, CalendarClock } from 'lucide-react'; // Added CalendarClock
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -55,7 +55,7 @@ export default function DashboardPage() {
     } else {
          setSelectedCourtName("all");
     }
-  }, [selectedCourtRank, selectedCourtName]); // Added selectedCourtName to dependency array to re-evaluate specificCourts if name changes indirectly.
+  }, [selectedCourtRank, selectedCourtName]);
 
 
   const handleCourtRankChange = (value: string) => {
@@ -185,8 +185,8 @@ export default function DashboardPage() {
 
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <FilingsVsResolutionsChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
-            {/* <PendingCasesChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} /> // Removed */}
-            <JudgeWorkloadChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} />
+            <CaseAgeDistributionChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} /> {/* Added */}
+            {/* <JudgeWorkloadChart selectedTimePeriod={selectedTimePeriod} selectedCourtRank={selectedCourtRank} selectedCourtName={selectedCourtName} /> // Removed */}
           </section>
 
           <footer className="mt-12 text-center text-sm text-muted-foreground">
