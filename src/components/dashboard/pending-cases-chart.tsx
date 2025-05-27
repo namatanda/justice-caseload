@@ -24,23 +24,29 @@ const chartConfig = {
 } satisfies ComponentProps<typeof ChartContainer>["config"];
 
 interface PendingCasesChartProps {
-  selectedCaseType: string;
-  selectedAge: string;
+  selectedTimePeriod: string;
+  selectedCourtRank: string;
+  selectedCourtName: string;
 }
 
-export function PendingCasesChart({ selectedCaseType, selectedAge }: PendingCasesChartProps) {
+export function PendingCasesChart({ selectedTimePeriod, selectedCourtRank, selectedCourtName }: PendingCasesChartProps) {
   const processedData = useMemo(() => {
     return initialChartData.map(item => {
       let adjustedCases = item.cases;
-      if (selectedCaseType !== "all") {
+      if (selectedTimePeriod !== "all") {
+        adjustedCases *= 0.88;
+      }
+      if (selectedCourtRank !== "all") {
         adjustedCases *= 0.82;
       }
-      if (selectedAge !== "all") {
-        adjustedCases *= 0.88;
+      if (selectedCourtName !== "all" && selectedCourtRank !== "all") {
+        adjustedCases *= 0.75;
       }
       return { ...item, cases: Math.max(0, Math.round(adjustedCases)) };
     });
-  }, [selectedCaseType, selectedAge]);
+  }, [selectedTimePeriod, selectedCourtRank, selectedCourtName]);
+
+  const isFiltered = selectedTimePeriod !== 'all' || selectedCourtRank !== 'all' || (selectedCourtName !== 'all' && selectedCourtRank !== 'all');
   
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out rounded-lg">
@@ -49,7 +55,7 @@ export function PendingCasesChart({ selectedCaseType, selectedAge }: PendingCase
           <FolderClock className="h-6 w-6 text-accent" />
           <CardTitle>Pending Cases Trend</CardTitle>
         </div>
-        <CardDescription>Number of pending cases per month over the last 6 months. {selectedCaseType !== 'all' || selectedAge !== 'all' ? '(Filtered)' : ''}</CardDescription>
+        <CardDescription>Number of pending cases per month over the last 6 months. {isFiltered ? '(Filtered)' : ''}</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">

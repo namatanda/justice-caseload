@@ -28,23 +28,28 @@ const chartConfig = {
 } satisfies ComponentProps<typeof ChartContainer>["config"];
 
 interface FilingsVsResolutionsChartProps {
-  selectedCaseType: string;
-  selectedAge: string;
+  selectedTimePeriod: string;
+  selectedCourtRank: string;
+  selectedCourtName: string;
 }
 
-export function FilingsVsResolutionsChart({ selectedCaseType, selectedAge }: FilingsVsResolutionsChartProps) {
+export function FilingsVsResolutionsChart({ selectedTimePeriod, selectedCourtRank, selectedCourtName }: FilingsVsResolutionsChartProps) {
   const processedData = useMemo(() => {
     return initialChartData.map(item => {
       let adjustedFiled = item.filed;
       let adjustedResolved = item.resolved;
 
-      if (selectedCaseType !== "all") {
-        adjustedFiled *= 0.8; // Simulate 20% reduction for filed
-        adjustedResolved *= 0.75; // Simulate 25% reduction for resolved
+      if (selectedTimePeriod !== "all") {
+        adjustedFiled *= 0.9; 
+        adjustedResolved *= 0.85;
       }
-      if (selectedAge !== "all") {
-        adjustedFiled *= 0.85; // Simulate 15% reduction for filed
-        adjustedResolved *= 0.9; // Simulate 10% reduction for resolved
+      if (selectedCourtRank !== "all") {
+        adjustedFiled *= 0.8; 
+        adjustedResolved *= 0.75; 
+      }
+      if (selectedCourtName !== "all" && selectedCourtRank !== "all") {
+        adjustedFiled *= 0.7;
+        adjustedResolved *= 0.65;
       }
       return { 
         ...item, 
@@ -52,7 +57,9 @@ export function FilingsVsResolutionsChart({ selectedCaseType, selectedAge }: Fil
         resolved: Math.max(0, Math.round(adjustedResolved)),
       };
     });
-  }, [selectedCaseType, selectedAge]);
+  }, [selectedTimePeriod, selectedCourtRank, selectedCourtName]);
+
+  const isFiltered = selectedTimePeriod !== 'all' || selectedCourtRank !== 'all' || (selectedCourtName !== 'all' && selectedCourtRank !== 'all');
 
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out rounded-lg lg:col-span-2">
@@ -61,7 +68,7 @@ export function FilingsVsResolutionsChart({ selectedCaseType, selectedAge }: Fil
           <TrendingUp className="h-6 w-6 text-primary" />
           <CardTitle>Filings vs. Resolutions Trend</CardTitle>
         </div>
-        <CardDescription>Comparison of new cases filed and cases resolved per month. {selectedCaseType !== 'all' || selectedAge !== 'all' ? '(Filtered)' : ''}</CardDescription>
+        <CardDescription>Comparison of new cases filed and cases resolved per month. {isFiltered ? '(Filtered)' : ''}</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">

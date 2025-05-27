@@ -23,23 +23,31 @@ const chartConfig = {
 } satisfies ComponentProps<typeof ChartContainer>["config"];
 
 interface JudgeWorkloadChartProps {
-  selectedCaseType: string;
-  selectedAge: string;
+  selectedTimePeriod: string;
+  selectedCourtRank: string;
+  selectedCourtName: string;
 }
 
-export function JudgeWorkloadChart({ selectedCaseType, selectedAge }: JudgeWorkloadChartProps) {
+export function JudgeWorkloadChart({ selectedTimePeriod, selectedCourtRank, selectedCourtName }: JudgeWorkloadChartProps) {
   const processedData = useMemo(() => {
+    // Note: For a real application, filtering judges by court would require a more complex data structure
+    // and logic. Here, we're just simulating a general reduction if court filters are active.
     return initialChartData.map(item => {
       let adjustedWorkload = item.workload;
-      if (selectedCaseType !== "all") {
+      if (selectedTimePeriod !== "all") {
+        adjustedWorkload *= 0.92;
+      }
+      if (selectedCourtRank !== "all") {
         adjustedWorkload *= 0.9;
       }
-      if (selectedAge !== "all") {
-        adjustedWorkload *= 0.95;
+      if (selectedCourtName !== "all" && selectedCourtRank !== "all") {
+        adjustedWorkload *= 0.85;
       }
       return { ...item, workload: Math.max(0, Math.round(adjustedWorkload)) };
     });
-  }, [selectedCaseType, selectedAge]);
+  }, [selectedTimePeriod, selectedCourtRank, selectedCourtName]);
+
+  const isFiltered = selectedTimePeriod !== 'all' || selectedCourtRank !== 'all' || (selectedCourtName !== 'all' && selectedCourtRank !== 'all');
 
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out rounded-lg">
@@ -48,7 +56,7 @@ export function JudgeWorkloadChart({ selectedCaseType, selectedAge }: JudgeWorkl
           <Gavel className="h-6 w-6 text-[hsl(var(--chart-4))]" />
           <CardTitle>Workload per Judge</CardTitle>
         </div>
-        <CardDescription>Current number of active cases assigned to each judge. {selectedCaseType !== 'all' || selectedAge !== 'all' ? '(Filtered)' : ''}</CardDescription>
+        <CardDescription>Current number of active cases assigned to each judge. {isFiltered ? '(Filtered)' : ''}</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
