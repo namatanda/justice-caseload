@@ -67,7 +67,7 @@ export default function DashboardPage() {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar side="left" collapsible="icon" className="border-r">
+      <Sidebar side="left" collapsible="offcanvas" className="border-r"> {/* Changed collapsible to "offcanvas" */}
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3">
             <Filter className="h-6 w-6 text-primary" />
@@ -77,11 +77,11 @@ export default function DashboardPage() {
         <SidebarContent className="p-4 space-y-6">
           <SidebarGroup>
             <div className="space-y-1">
-              <Label htmlFor="timeFilter" className="text-sm font-medium text-muted-foreground group-data-[collapsible=icon]:sr-only">Time Period</Label>
+              <Label htmlFor="timeFilter" className="text-sm font-medium text-muted-foreground">Time Period</Label>
               <Select value={selectedTimePeriod} onValueChange={setSelectedTimePeriod}>
-                <SelectTrigger id="timeFilter" className="w-full rounded-md border-input shadow-sm group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:justify-center">
-                  <Clock className="h-4 w-4 hidden group-data-[collapsible=icon]:block" />
-                  <SelectValue placeholder="Select period" className="group-data-[collapsible=icon]:hidden" />
+                <SelectTrigger id="timeFilter" className="w-full rounded-md border-input shadow-sm">
+                  <Clock className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Time</SelectItem>
@@ -94,11 +94,11 @@ export default function DashboardPage() {
           </SidebarGroup>
           <SidebarGroup>
             <div className="space-y-1">
-              <Label htmlFor="courtRankFilter" className="text-sm font-medium text-muted-foreground group-data-[collapsible=icon]:sr-only">Court Rank</Label>
+              <Label htmlFor="courtRankFilter" className="text-sm font-medium text-muted-foreground">Court Rank</Label>
               <Select value={selectedCourtRank} onValueChange={handleCourtRankChange}>
-                <SelectTrigger id="courtRankFilter" className="w-full rounded-md border-input shadow-sm group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:justify-center">
-                  <Landmark className="h-4 w-4 hidden group-data-[collapsible=icon]:block" />
-                  <SelectValue placeholder="Select rank" className="group-data-[collapsible=icon]:hidden"/>
+                <SelectTrigger id="courtRankFilter" className="w-full rounded-md border-input shadow-sm">
+                  <Landmark className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Select rank"/>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Ranks</SelectItem>
@@ -112,11 +112,11 @@ export default function DashboardPage() {
           {selectedCourtRank !== "all" && specificCourts.length > 0 && (
             <SidebarGroup>
               <div className="space-y-1">
-                <Label htmlFor="courtNameFilter" className="text-sm font-medium text-muted-foreground group-data-[collapsible=icon]:sr-only">Specific Court</Label>
+                <Label htmlFor="courtNameFilter" className="text-sm font-medium text-muted-foreground">Specific Court</Label>
                 <Select value={selectedCourtName} onValueChange={setSelectedCourtName} disabled={specificCourts.length === 0}>
-                  <SelectTrigger id="courtNameFilter" className="w-full rounded-md border-input shadow-sm group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:justify-center">
-                     <Landmark className="h-4 w-4 hidden group-data-[collapsible=icon]:block opacity-70" />
-                     <SelectValue placeholder="Select court" className="group-data-[collapsible=icon]:hidden"/>
+                  <SelectTrigger id="courtNameFilter" className="w-full rounded-md border-input shadow-sm">
+                     <Landmark className="h-4 w-4 mr-2 opacity-70" />
+                     <SelectValue placeholder="Select court"/>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Specific Courts</SelectItem>
@@ -147,7 +147,7 @@ export default function DashboardPage() {
             <p className="text-muted-foreground mt-1">Key court performance metrics overview.</p>
           </header>
 
-          <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3"> {/* Adjusted grid for better layout with 6 cards */}
+          <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
             <OverviewCard 
               title="Total Filed Cases" 
               value={totalFiled.toLocaleString()} 
@@ -185,9 +185,9 @@ export default function DashboardPage() {
              <OverviewCard
                 title="Backlog Growth"
                 value={backlogGrowth}
-                icon={<ArrowUpRight className="h-5 w-5 text-red-500" />} /* Example color, adjust based on positive/negative */
+                icon={<ArrowUpRight className="h-5 w-5 text-red-500" />}
                 description={backlogGrowthDescription}
-                valueClassName={backlogGrowth.startsWith('+') ? "text-red-500" : "text-green-500"} /* Dynamic color based on growth, assuming '+' means increase (bad) */
+                valueClassName={backlogGrowth.startsWith('+') ? "text-red-500" : "text-green-500"}
             />
           </section>
 
