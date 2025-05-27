@@ -1,3 +1,4 @@
+
 "use client";
 
 import { OverviewCard } from '@/components/dashboard/overview-card';
@@ -5,7 +6,7 @@ import { FiledCasesChart } from '@/components/dashboard/filed-cases-chart';
 import { ResolvedCasesChart } from '@/components/dashboard/resolved-cases-chart';
 import { PendingCasesChart } from '@/components/dashboard/pending-cases-chart';
 import { JudgeWorkloadChart } from '@/components/dashboard/judge-workload-chart';
-import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter } from 'lucide-react';
+import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent } from 'lucide-react';
 import React, { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,8 @@ export default function DashboardPage() {
   const totalResolved = 980;
   const totalPending = Math.max(0, totalFiled - totalResolved);
   const averageResolutionTime = '45 days';
+  const clearanceRate = totalFiled > 0 ? ((totalResolved / totalFiled) * 100).toFixed(1) + '%' : 'N/A';
+
 
   const [selectedCaseType, setSelectedCaseType] = useState<string>("all");
   const [selectedAge, setSelectedAge] = useState<string>("all");
@@ -70,7 +73,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
         <OverviewCard 
           title="Total Filed Cases" 
           value={totalFiled.toLocaleString()} 
@@ -97,6 +100,13 @@ export default function DashboardPage() {
           icon={<Activity className="h-5 w-5 text-[hsl(var(--chart-4))]" />} 
           description="Average time to resolve cases."
           valueClassName="text-[hsl(var(--chart-4))]"
+        />
+        <OverviewCard
+            title="Clearance Rate"
+            value={clearanceRate}
+            icon={<Percent className="h-5 w-5 text-green-600" />}
+            description="Percentage of filed cases resolved."
+            valueClassName="text-green-600"
         />
       </section>
 
