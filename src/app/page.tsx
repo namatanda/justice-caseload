@@ -6,7 +6,8 @@ import { FiledCasesChart } from '@/components/dashboard/filed-cases-chart';
 import { ResolvedCasesChart } from '@/components/dashboard/resolved-cases-chart';
 import { PendingCasesChart } from '@/components/dashboard/pending-cases-chart';
 import { JudgeWorkloadChart } from '@/components/dashboard/judge-workload-chart';
-import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent } from 'lucide-react';
+import { FilingsVsResolutionsChart } from '@/components/dashboard/filings-vs-resolutions-chart';
+import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, TrendingUp } from 'lucide-react';
 import React, { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -111,6 +112,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <FilingsVsResolutionsChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
         <FiledCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
         <ResolvedCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
         <PendingCasesChart selectedCaseType={selectedCaseType} selectedAge={selectedAge} />
