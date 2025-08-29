@@ -24,7 +24,11 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "validate": "tsx scripts/validate-implementation.ts"
+    "validate": "tsx scripts/validate-implementation.ts",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",

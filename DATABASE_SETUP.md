@@ -18,9 +18,9 @@ This document provides comprehensive setup instructions for the Justice Caseload
 
 Before setting up the database, ensure you have:
 
-1. **Node.js** (v18 or higher)
-2. **PostgreSQL** (v15 or higher) - [Download](https://www.postgresql.org/download/)
-3. **Redis** (v6 or higher) - [Download](https://redis.io/download)
+1. **Node.js** (v18 or higher) - OR **Docker** (recommended for easier setup)
+2. **PostgreSQL** (v15 or higher) - [Download](https://www.postgresql.org/download/) OR use Docker
+3. **Redis** (v6 or higher) - [Download](https://redis.io/download) OR use Docker
 4. **Git** for version control
 
 ## Initial Setup
@@ -55,6 +55,55 @@ QUEUE_CONCURRENCY="5"
 QUEUE_RETRY_ATTEMPTS="3"
 ```
 
+### Docker Setup (Recommended)
+
+For easier setup and deployment, you can use Docker to run the entire application stack:
+
+1. **Install Docker** - [Download Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+2. **Configure Environment** - Update your `.env` file with Docker-specific settings:
+
+```env
+# Database Configuration for Docker
+DATABASE_URL="postgresql://justice_user:justice_password@localhost:5432/justice_caseload"
+
+# Redis Configuration for Docker
+REDIS_URL="redis://localhost:6379"
+
+# Application Configuration
+NODE_ENV="development"
+LOG_LEVEL="info"
+
+# File Upload Configuration
+MAX_FILE_SIZE="10485760" # 10MB
+UPLOAD_DIR="./uploads"
+
+# Queue Configuration
+QUEUE_CONCURRENCY="5"
+QUEUE_RETRY_ATTEMPTS="3"
+```
+
+3. **Start the Application** - Run the entire stack with one command:
+
+```bash
+docker-compose up --build
+```
+
+This will start:
+- PostgreSQL database on port 5432
+- Redis server on port 6379
+- The application on port 3000
+
+4. **Access the Application** - Visit `http://localhost:3000` in your browser
+
+5. **Run Migrations** - The migrations are automatically run when using docker-compose
+
+6. **Run Seeds (Optional)** - To populate with sample data:
+
+```bash
+docker-compose exec app npm run db:seed
+```
+
 ### 2. Install Dependencies
 
 Install all required dependencies:
@@ -83,6 +132,40 @@ rm -rf node_modules package-lock.json
 # Reinstall
 npm install
 ```
+
+#### Docker Troubleshooting
+
+If you encounter issues with Docker:
+
+1. **Port Conflicts** - If ports 3000, 5432, or 6379 are already in use:
+   ```bash
+   # Stop conflicting services
+   docker-compose down
+   # Change ports in docker-compose.yml if needed
+   ```
+
+2. **Database Connection Issues** - Ensure all services are healthy:
+   ```bash
+   docker-compose ps
+   ```
+
+3. **Rebuild Containers** - If you make changes to the application:
+   ```bash
+   docker-compose up --build --force-recreate
+   ```
+
+4. **View Logs** - To debug issues:
+   ```bash
+   docker-compose logs app
+   docker-compose logs database
+   docker-compose logs redis
+   ```
+
+5. **Reset Everything** - To start fresh:
+   ```bash
+   docker-compose down -v
+   docker-compose up --build
+   ```
 
 ### 3. Database Setup
 

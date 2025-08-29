@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  database:
+    image: postgres:15
+    container_name: justice_caseload_db
+    restart: always
+    environment:
+      POSTGRES_USER: justice_user
+      POSTGRES_PASSWORD: justice_password
+      POSTGRES_DB: justice_caseload
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U justice_user -d justice_caseload"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching and queue processing
+  redis:
+    image: redis:7-alpine
+    container_name: justice_caseload_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: justice_caseload_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://justice_user:justice_password@database:5432/justice_caseload
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./uploads:/app/uploads
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        npm start
+      "
+
+volumes:
+  postgres_data:
+  redis_data:

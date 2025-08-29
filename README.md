@@ -23,7 +23,23 @@ This is a web application that provides a comprehensive dashboard for monitoring
 
 ## Getting Started
 
-To get the development server running locally:
+### Option 1: Using Docker (Recommended)
+
+1. **Install Docker** - [Download Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+2. **Configure Environment**:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Start the Application**:
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Access the Application** - Visit [http://localhost:3000](http://localhost:3000)
+
+### Option 2: Local Development Setup
 
 1.  **Install dependencies**:
     ```bash
@@ -38,3 +54,6 @@ To get the development server running locally:
 Open [http://localhost:9002](http://localhost:9002) with your browser to see the result.
 
 You can start editing the main page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
+
+For detailed database setup instructions, see [DATABASE_SETUP.md](DATABASE_SETUP.md).
+For Docker-specific instructions, see [DOCKER.md](DOCKER.md).
