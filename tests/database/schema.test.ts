@@ -79,7 +79,7 @@ describe('Database Schema Tests', () => {
         data: {
           courtName: 'First Court',
           courtCode,
-          courtType: 'MAGISTRATE',
+          courtType: 'MC' as const,
         },
       });
 
@@ -88,14 +88,14 @@ describe('Database Schema Tests', () => {
           data: {
             courtName: 'Second Court',
             courtCode,
-            courtType: 'HIGH_COURT',
+            courtType: 'HC' as const,
           },
         })
       ).rejects.toThrow();
     });
 
     it('should support all court types', async () => {
-      const courtTypes = ['MAGISTRATE', 'HIGH_COURT', 'TRIBUNAL', 'OTHER'] as const;
+      const courtTypes = ['SC','ELC','ELRC', 'KC', 'SCC', 'COA','MC', 'HC', 'TC'] as const;
       
       for (const courtType of courtTypes) {
         const court = await testDb().court.create({

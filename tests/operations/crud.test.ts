@@ -331,7 +331,7 @@ describe('CRUD Operations Tests', () => {
       const courtData = {
         courtName: 'New Test Court',
         courtCode: 'NTC',
-        courtType: 'MAGISTRATE' as const,
+        courtType: 'MC' as const,
         isActive: true,
       };
       
@@ -345,7 +345,7 @@ describe('CRUD Operations Tests', () => {
       const courtData1 = {
         courtName: 'First Court',
         courtCode: 'DUPLICATE',
-        courtType: 'HIGH_COURT' as const,
+        courtType: 'HC' as const,
       };
       
       const courtData2 = {

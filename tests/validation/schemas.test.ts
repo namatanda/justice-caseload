@@ -61,10 +61,10 @@ describe('Validation Schemas Tests', () => {
 
     it('should fail validation for invalid year range', () => {
       const mockRow = generateMockCsvRow();
-      mockRow.date_yyyy = 2050; // Future year outside allowed range
-      
+      mockRow.date_yyyy = 2010; // Year before 2015 minimum
+
       const result = CaseReturnRowSchema.safeParse(mockRow);
-      
+
       expect(result.success).toBe(false);
     });
 
@@ -192,7 +192,7 @@ describe('Validation Schemas Tests', () => {
       const validCourtData = {
         courtName: 'Test High Court',
         courtCode: 'THC',
-        courtType: 'HIGH_COURT',
+        courtType: 'HC',
         isActive: true,
       };
       

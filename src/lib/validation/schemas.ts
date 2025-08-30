@@ -2,19 +2,19 @@ import { z } from 'zod';
 
 // CSV row validation schema for daily case returns
 export const CaseReturnRowSchema = z.object({
-  // Date fields
-  date_dd: z.coerce.number().min(1).max(31),
-  date_mon: z.string().length(3),
-  date_yyyy: z.coerce.number().min(2020).max(2030),
-  
-  // Case identification
-  caseid_type: z.string().min(1).max(20),
-  caseid_no: z.string().min(1).max(50),
-  
-  // Filing information
-  filed_dd: z.coerce.number().min(1).max(31),
-  filed_mon: z.string().length(3),
-  filed_yyyy: z.coerce.number().min(2020).max(2030),
+   // Date fields
+   date_dd: z.coerce.number().min(1).max(31),
+   date_mon: z.string().length(3),
+   date_yyyy: z.coerce.number().min(2015).max(new Date().getFullYear()),
+
+   // Case identification
+   caseid_type: z.string().min(1).max(20),
+   caseid_no: z.string().min(1).max(50),
+
+   // Filing information
+   filed_dd: z.coerce.number().min(1).max(31),
+   filed_mon: z.string().length(3),
+   filed_yyyy: z.coerce.number().min(1960).max(new Date().getFullYear()),
   
   // Court information
   court: z.string().min(1).max(255), // Current court handling the case
@@ -43,8 +43,8 @@ export const CaseReturnRowSchema = z.object({
   // Next hearing date (optional)
   next_dd: z.coerce.number().min(1).max(31).optional(),
   next_mon: z.string().length(3).optional(),
-  next_yyyy: z.coerce.number().min(2020).max(2030).optional(),
-  
+  next_yyyy: z.coerce.number().min(2015).max(new Date().getFullYear()).optional(),
+
   // Party counts
   male_applicant: z.coerce.number().min(0).max(999),
   female_applicant: z.coerce.number().min(0).max(999),
@@ -52,7 +52,7 @@ export const CaseReturnRowSchema = z.object({
   male_defendant: z.coerce.number().min(0).max(999),
   female_defendant: z.coerce.number().min(0).max(999),
   organization_defendant: z.coerce.number().min(0).max(999),
-  
+
   // Procedural details
   legalrep: z.enum(['Yes', 'No']),
   applicant_witness: z.coerce.number().min(0).max(999),
@@ -70,7 +70,7 @@ export const CreateCaseSchema = z.object({
   filedDate: z.date(),
   originalCourtId: z.string().uuid().optional(),
   originalCaseNumber: z.string().max(50).optional(),
-  originalYear: z.number().int().min(1900).max(2030).optional(),
+  originalYear: z.number().int().min(1960).max(new Date().getFullYear()).optional(),
   parties: z.object({
     applicants: z.object({
       maleCount: z.number().int().min(0),
@@ -104,10 +104,10 @@ export const CreateCaseActivitySchema = z.object({
 });
 
 export const CreateCourtSchema = z.object({
-  courtName: z.string().min(1).max(255),
-  courtCode: z.string().min(1).max(50),
-  courtType: z.enum(['MAGISTRATE', 'HIGH_COURT', 'TRIBUNAL', 'OTHER']),
-  isActive: z.boolean().default(true),
+   courtName: z.string().min(1).max(255),
+   courtCode: z.string().min(1).max(50),
+   courtType: z.enum(['SC','ELC','ELRC', 'KC', 'SCC', 'COA','MC', 'HC', 'TC']),
+   isActive: z.boolean().default(true),
 });
 
 export const CreateJudgeSchema = z.object({
@@ -187,10 +187,26 @@ export const FileUploadSchema = z.object({
   filename: z.string().min(1).max(255),
   size: z.number().int().min(1).max(10485760), // 10MB max
   type: z.string().refine(
-    (type) => type === 'text/csv' || type === 'application/csv',
-    { message: 'File must be CSV format' }
+    (type) => {
+      // Accept common CSV MIME types and text-based formats
+      const acceptedTypes = [
+        'text/csv',
+        'application/csv',
+        'text/plain',
+        'text/comma-separated-values',
+        'application/vnd.ms-excel', // Excel CSV files
+        'text/x-csv',
+        'application/x-csv',
+        'text/csv-schema'
+      ];
+      return acceptedTypes.includes(type.toLowerCase());
+    },
+    {
+      message: 'File must be CSV format. Supported types: text/csv, application/csv, text/plain, and other CSV variants'
+    }
   ),
 });
+
 
 // Helper function to validate and transform dates
 export function createDateFromParts(day: number, month: string, year: number): Date {

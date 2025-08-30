@@ -5,10 +5,12 @@ import { OverviewCard } from '@/components/dashboard/overview-card';
 import { CaseAgeDistributionChart } from '@/components/dashboard/case-age-distribution-chart';
 import { FilingsVsResolutionsChart } from '@/components/dashboard/filings-vs-resolutions-chart';
 import { BacklogTrendsByCourtLevelChart } from '@/components/dashboard/backlog-trends-by-court-level-chart'; // New Import
-import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, Clock, Landmark, CalendarClock, ArrowUpRight, Layers } from 'lucide-react'; // Added ArrowUpRight, Layers
+import { Activity, CheckCircle2, FileText, Hourglass, LayoutDashboard, Filter, Percent, Clock, Landmark, CalendarClock, ArrowUpRight, Layers, Upload } from 'lucide-react'; // Added ArrowUpRight, Layers, Upload
+import Link from 'next/link';
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarGroup } from '@/components/ui/sidebar';
 
 const courtData: { [key: string]: { name: string; value: string }[] } = {
@@ -140,7 +142,15 @@ export default function DashboardPage() {
                   CourtFlow Dashboard
                 </h1>
               </div>
-              <SidebarTrigger className="hidden md:flex" />
+              <div className="flex items-center gap-3">
+                <Link href="/import">
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Import Data
+                  </Button>
+                </Link>
+                <SidebarTrigger className="hidden md:flex" />
+              </div>
             </div>
             <p className="text-muted-foreground mt-1">Key court performance metrics overview.</p>
           </header>

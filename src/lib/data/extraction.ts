@@ -1,4 +1,5 @@
-import { CourtType, PrismaTransaction } from '@prisma/client';
+import { CourtType } from '@prisma/client';
+import { PrismaTransaction } from '../database';
 import { validateExtractedCourt, validateExtractedJudge, validateExtractedCaseType } from '../validation/schemas';
 
 // Court extraction and normalization
@@ -210,13 +211,17 @@ function generateCourtCode(courtName: string): string {
 function inferCourtType(courtName: string): CourtType {
   const name = courtName.toLowerCase();
   
-  if (name.includes('magistrate')) return 'MAGISTRATE';
-  if (name.includes('high court') || name.includes('hc')) return 'HIGH_COURT';
-  if (name.includes('tribunal')) return 'TRIBUNAL';
-  if (name.includes('commercial')) return 'MAGISTRATE'; // Commercial courts are typically magistrate level
-  if (name.includes('small claims')) return 'MAGISTRATE';
-  
-  return 'OTHER';
+  if (name.includes('supreme court') || name.includes('sc')) return 'SC' as CourtType;
+  if (name.includes('high court') || name.includes('hc')) return 'HC' as CourtType;
+  if (name.includes('magistrate') || name.includes('commercial')) return 'MC' as CourtType;
+  if (name.includes('small claims')) return 'SCC' as CourtType;
+  if (name.includes('court of appeal') || name.includes('coa')) return 'COA' as CourtType;
+  if (name.includes('employment') || name.includes('labour')) return 'ELRC' as CourtType;
+  if (name.includes('environment') || name.includes('land')) return 'ELC' as CourtType;
+  if (name.includes('kadhis') || name.includes('kadhi')) return 'KC' as CourtType;
+  if (name.includes('tribunal')) return 'TC' as CourtType;
+
+  return 'SC' as CourtType; // Default to Supreme Court
 }
 
 // Judge normalization functions

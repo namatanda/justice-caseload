@@ -5,11 +5,15 @@ const prisma = new PrismaClient();
 
 // Sample data for seeding
 const sampleCourts = [
-  { name: 'High Court of Kenya', code: 'HCK', type: 'HIGH_COURT' as const },
-  { name: 'Milimani Commercial Court', code: 'MCC', type: 'MAGISTRATE' as const },
-  { name: 'Kibera Law Courts', code: 'KLC', type: 'MAGISTRATE' as const },
-  { name: 'Employment and Labour Relations Court', code: 'ELRC', type: 'TRIBUNAL' as const },
-  { name: 'Environment and Land Court', code: 'ELC', type: 'TRIBUNAL' as const },
+  { name: 'Supreme Court of Kenya', code: 'SCK', type: 'SC' as const },
+  { name: 'High Court of Kenya', code: 'HCK', type: 'HC' as const },
+  { name: 'Milimani Commercial Court', code: 'MCC', type: 'MC' as const },
+  { name: 'Kibera Law Courts', code: 'KLC', type: 'MC' as const },
+  { name: 'Employment and Labour Relations Court', code: 'ELRC', type: 'ELRC' as const },
+  { name: 'Environment and Land Court', code: 'ELC', type: 'ELC' as const },
+  { name: 'Court of Appeal', code: 'COA', type: 'COA' as const },
+  { name: 'Kadhis Court', code: 'KDC', type: 'KC' as const },
+  { name: 'Small Claims Court', code: 'SCC', type: 'SCC' as const },
 ];
 
 const sampleJudges = [

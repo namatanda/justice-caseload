@@ -101,7 +101,7 @@ export const createTestCourt = async () => {
     data: {
       courtName: 'Test Court',
       courtCode: `TEST${Date.now()}`,
-      courtType: 'HIGH_COURT',
+      courtType: 'HC' as const,
     },
   });
 };
