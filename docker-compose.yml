@@ -1,30 +1,26 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   database:
-    image: postgres:15
-    container_name: justice_caseload_db
+    image: postgres:latest
     restart: always
     environment:
-      POSTGRES_USER: justice_user
-      POSTGRES_PASSWORD: justice_password
-      POSTGRES_DB: justice_caseload
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U justice_user -d justice_caseload"]
+      test: ["CMD-SHELL", "pg_isready -U fiend"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   # Redis for caching and queue processing
   redis:
-    image: redis:7-alpine
-    container_name: justice_caseload_redis
+    image: redis:latest
     restart: always
     ports:
       - "6379:6379"
@@ -46,7 +42,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://justice_user:justice_password@database:5432/justice_caseload
+      - DATABASE_URL=postgresql://${PG_USER}:${PG_PASSWORD}@database:5432/${PG_DB}?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
     depends_on:
@@ -60,7 +56,9 @@ services:
       - ./uploads:/app/uploads
     command: >
       sh -c "
+        npx prisma generate &&
         npx prisma migrate deploy &&
+        npm run build &&
         npm start
       "
 
