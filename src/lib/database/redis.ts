@@ -2,11 +2,42 @@ import { Redis } from 'ioredis';
 import { Queue, Worker, Job } from 'bullmq';
 
 // Redis connection configuration
+function parseRedisUrl(redisUrl?: string) {
+  if (!redisUrl) {
+    return {
+      host: 'localhost',
+      port: 6379,
+      password: undefined,
+      db: 0,
+    };
+  }
+
+  try {
+    const url = new URL(redisUrl);
+    return {
+      host: url.hostname,
+      port: parseInt(url.port) || 6379,
+      password: url.password || undefined,
+      db: parseInt(url.pathname.slice(1)) || 0,
+    };
+  } catch (error) {
+    console.warn('Invalid REDIS_URL format, falling back to localhost');
+    return {
+      host: 'localhost',
+      port: 6379,
+      password: undefined,
+      db: 0,
+    };
+  }
+}
+
+const redisUrlConfig = parseRedisUrl(process.env.REDIS_URL);
+
 const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
-  db: parseInt(process.env.REDIS_DB || '0'),
+  host: process.env.REDIS_HOST || redisUrlConfig.host,
+  port: parseInt(process.env.REDIS_PORT || redisUrlConfig.port.toString()),
+  password: process.env.REDIS_PASSWORD || redisUrlConfig.password,
+  db: parseInt(process.env.REDIS_DB || redisUrlConfig.db.toString()),
   retryDelayOnFailover: 100,
   enableReadyCheck: false,
   maxRetriesPerRequest: null,
@@ -128,6 +159,47 @@ export async function checkRedisConnection(): Promise<boolean> {
   } catch (error) {
     console.error('Redis connection failed:', error);
     return false;
+  }
+}
+
+// Initialize queue workers (call this when the app starts)
+export async function initializeQueueWorkers(): Promise<void> {
+  try {
+    console.log('🔄 Initializing queue workers...');
+
+    // Test Redis connection
+    const isRedisConnected = await checkRedisConnection();
+    if (!isRedisConnected) {
+      console.error('❌ Redis connection failed - queue workers will not function');
+      return;
+    }
+
+    // Import and initialize workers dynamically to avoid issues during build
+    const { csvImportWorker, analyticsWorker } = await import('../import/queue-worker');
+
+    console.log('✅ Queue workers initialized successfully');
+
+    // Set up graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('🛑 Received SIGTERM, shutting down workers...');
+      await Promise.all([
+        csvImportWorker.close(),
+        analyticsWorker.close(),
+      ]);
+      process.exit(0);
+    });
+
+    process.on('SIGINT', async () => {
+      console.log('🛑 Received SIGINT, shutting down workers...');
+      await Promise.all([
+        csvImportWorker.close(),
+        analyticsWorker.close(),
+      ]);
+      process.exit(0);
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to initialize queue workers:', error);
   }
 }
 
