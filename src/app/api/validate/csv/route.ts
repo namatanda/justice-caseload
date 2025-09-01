@@ -143,6 +143,23 @@ interface FieldError {
 function parseZodError(zodError: string, row: any): FieldError[] {
   const errors: FieldError[] = [];
 
+  // Handle the transform error for missing required fields
+  if (zodError.includes('Missing required fields:')) {
+    const missingFieldsMatch = zodError.match(/Missing required fields:\s*(.+)/);
+    if (missingFieldsMatch) {
+      const missingFields = missingFieldsMatch[1].split(', ');
+      missingFields.forEach(field => {
+        errors.push({
+          field,
+          message: `${field} is required but missing or empty`,
+          suggestion: `Please provide a value for ${field}`,
+          rawValue: row[field] || null
+        });
+      });
+      return errors;
+    }
+  }
+
   // Extract field-specific errors from Zod error message
   const errorLines = zodError.split('\n').filter(line => line.trim());
 

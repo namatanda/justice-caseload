@@ -1,14 +1,15 @@
 import { createReadStream } from 'fs';
 import { createHash } from 'crypto';
 import csv from 'csv-parser';
-import { 
-  CaseReturnRowSchema, 
-  CaseReturnRow, 
-  createDateFromParts 
+import { CourtType } from '@prisma/client';
+import {
+  CaseReturnRowSchema,
+  CaseReturnRow,
+  createDateFromParts
 } from '../validation/schemas';
-import { 
-  extractAndNormalizeCourt, 
-  extractAndNormalizeJudge, 
+import {
+  extractAndNormalizeCourt,
+  extractAndNormalizeJudge,
   extractAndNormalizeCaseType,
   extractJudgesFromRow,
   createCaseNumber,
@@ -17,6 +18,47 @@ import {
 } from '../data/extraction';
 import { prisma, withTransaction, ImportJobData } from '../database';
 import { importQueue, cacheManager } from '../database/redis';
+
+/**
+ * Derives CourtType from caseid_type prefix according to CSV data structure requirements.
+ * Rules from requirements.md:
+ * - Check for 3-letter SCC first to avoid conflict with SC (Supreme Court)
+ * - Then check 2-letter prefixes for other court types
+ * - Default to TC (Tribunal Court) for unmatched prefixes
+ */
+export function deriveCourtTypeFromCaseId(caseidType: string): CourtType {
+  if (!caseidType || typeof caseidType !== 'string') {
+    return CourtType.TC; // Default fallback
+  }
+
+  const prefix = caseidType.toUpperCase().trim();
+
+  // Check for 3-letter SCC first to avoid SC conflict
+  if (prefix.startsWith('SCC')) {
+    return CourtType.SCC;
+  }
+
+  // Check 2-letter prefixes
+  const twoLetterPrefix = prefix.substring(0, 2);
+
+  switch (twoLetterPrefix) {
+    case 'SC':
+      return CourtType.SC;
+    case 'EL':
+      // Check if it's ELC or ELRC
+      return prefix.startsWith('ELC') ? CourtType.ELC : CourtType.ELRC;
+    case 'KC':
+      return CourtType.KC;
+    case 'CO':
+      return CourtType.COA;
+    case 'MC':
+      return CourtType.MC;
+    case 'HC':
+      return CourtType.HC;
+    default:
+      return CourtType.TC; // Default for unmatched prefixes
+  }
+}
 
 // Import result interfaces
 export interface ImportResult {
@@ -161,7 +203,7 @@ export async function processCsvImport(jobData: ImportJobData): Promise<void> {
         totalRecords,
         successfulRecords,
         failedRecords: errors.length,
-        errorLogs: errors,
+        errorLogs: JSON.parse(JSON.stringify(errors)),
         status: finalStatus,
         completedAt: new Date(),
       },
@@ -256,16 +298,29 @@ async function createOrUpdateCase(
   tx: any,
   masterDataTracker: MasterDataTracker
 ): Promise<CaseCreationResult> {
-  
+
+  // Validate required fields are present
+  if (!row.caseid_type || !row.caseid_no) {
+    throw new Error('Missing required fields: caseid_type and caseid_no are required');
+  }
+  if (!row.filed_dd || !row.filed_mon || !row.filed_yyyy) {
+    throw new Error('Missing required date fields: filed_dd, filed_mon, filed_yyyy are required');
+  }
+  if (!row.case_type) {
+    throw new Error('Missing required field: case_type is required');
+  }
+
   const caseNumber = createCaseNumber(row.caseid_type, row.caseid_no);
   const filedDate = createDateFromParts(row.filed_dd, row.filed_mon, row.filed_yyyy);
-  
+
   // Extract and normalize master data
   const caseTypeId = await extractAndNormalizeCaseType(row.case_type, tx);
   masterDataTracker.trackCaseType(false); // We'll track this properly later
   
   // Extract current court directly from 'court' column
-  const currentCourtResult = await extractAndNormalizeCourt(row.court, undefined, tx);
+  // Use court type derivation from caseid_type if available
+  const derivedCourtType = row.caseid_type ? deriveCourtTypeFromCaseId(row.caseid_type) : undefined;
+  const currentCourtResult = await extractAndNormalizeCourt(row.court, undefined, tx, derivedCourtType);
   if (currentCourtResult) {
     masterDataTracker.trackCourt(currentCourtResult.isNewCourt);
   }
@@ -308,18 +363,16 @@ async function createOrUpdateCase(
         originalCourtId: originalCourtResult?.courtId || null,
         originalCaseNumber: row.original_number,
         originalYear: row.original_year,
-        parties: {
-          applicants: {
-            maleCount: row.male_applicant,
-            femaleCount: row.female_applicant,
-            organizationCount: row.organization_applicant,
-          },
-          defendants: {
-            maleCount: row.male_defendant,
-            femaleCount: row.female_defendant,
-            organizationCount: row.organization_defendant,
-          },
-        },
+        // Use individual party count fields instead of JSON
+        maleApplicant: row.male_applicant,
+        femaleApplicant: row.female_applicant,
+        organizationApplicant: row.organization_applicant,
+        maleDefendant: row.male_defendant,
+        femaleDefendant: row.female_defendant,
+        organizationDefendant: row.organization_defendant,
+        // CSV-specific fields
+        caseidType: row.caseid_type,
+        caseidNo: row.caseid_no,
         status: 'ACTIVE',
         caseAgeDays: Math.floor((Date.now() - filedDate.getTime()) / (1000 * 60 * 60 * 24)),
         lastActivityDate: new Date(),
@@ -356,7 +409,15 @@ async function createCaseActivity(
   tx: any,
   masterDataTracker: MasterDataTracker
 ): Promise<void> {
-  
+
+  // Validate required fields for activity
+  if (!row.date_dd || !row.date_mon || !row.date_yyyy) {
+    throw new Error('Missing required date fields: date_dd, date_mon, date_yyyy are required for activity');
+  }
+  if (!row.judge_1) {
+    throw new Error('Missing required field: judge_1 is required for activity');
+  }
+
   const activityDate = createDateFromParts(row.date_dd, row.date_mon, row.date_yyyy);
   const primaryJudge = await extractAndNormalizeJudge(row.judge_1, tx);
   masterDataTracker.trackJudge(primaryJudge.isNewJudge);
@@ -381,6 +442,19 @@ async function createCaseActivity(
       custodyStatus: determineCustodyStatus(row.custody),
       details: row.other_details,
       importBatchId,
+      // Store multiple judges from CSV
+      judge1: row.judge_1,
+      judge2: row.judge_2,
+      judge3: row.judge_3,
+      judge4: row.judge_4,
+      judge5: row.judge_5,
+      judge6: row.judge_6,
+      judge7: row.judge_7,
+      // Store CSV-specific fields
+      comingFor: row.comingfor,
+      legalRepString: row.legalrep,
+      custodyNumeric: row.custody,
+      otherDetails: row.other_details,
     },
   });
 }
@@ -389,10 +463,22 @@ async function createCaseActivity(
 async function readCsvFile(filePath: string): Promise<any[]> {
   return new Promise((resolve, reject) => {
     const results: any[] = [];
-    
+
     createReadStream(filePath)
-      .pipe(csv())
-      .on('data', (data) => results.push(data))
+      .pipe(csv({
+        // Ensure proper parsing of CSV with potential issues
+        skipEmptyLines: true,
+      }))
+      .on('data', (data) => {
+        // Clean up the data to handle empty strings and whitespace
+        const cleanedData: any = {};
+        for (const [key, value] of Object.entries(data)) {
+          const trimmedKey = key.trim();
+          const stringValue = String(value || '').trim();
+          cleanedData[trimmedKey] = stringValue === '' ? undefined : stringValue;
+        }
+        results.push(cleanedData);
+      })
       .on('end', () => resolve(results))
       .on('error', reject);
   });

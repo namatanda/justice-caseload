@@ -73,6 +73,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
   const validateFile = async () => {
     if (!selectedFile) return;
 
+    console.log('🔍 DEBUG: Starting file validation for:', selectedFile.name);
     setIsValidating(true);
     setValidationStartTime(Date.now());
     setElapsedTime(0);
@@ -82,12 +83,15 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
       const formData = new FormData();
       formData.append('file', selectedFile);
 
+      console.log('🔍 DEBUG: Sending validation request...');
       const response = await fetch('/api/validate/csv', {
         method: 'POST',
         body: formData,
       });
 
+      console.log('🔍 DEBUG: Validation response status:', response.status);
       const result = await response.json();
+      console.log('🔍 DEBUG: Validation result:', result);
 
       if (!result.success) {
         // Create a more user-friendly error message
@@ -95,6 +99,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
           `${err.message}${err.suggestion ? ` (${err.suggestion})` : ''}`
         ).join('\n') || result.error || 'Validation failed';
 
+        console.log('🔍 DEBUG: Validation failed with errors:', errorMessages);
         setError({
           message: errorMessages,
           timestamp: new Date().toISOString(),
@@ -102,17 +107,19 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
         return;
       }
 
+      console.log('🔍 DEBUG: Validation successful, setting results');
       setValidationResults(result);
       onValidationComplete(result);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to validate file';
+      console.error('❌ DEBUG: Validation error:', err);
       setError({
         message: errorMessage,
         details: err instanceof Error ? err.stack : undefined,
         timestamp: new Date().toISOString(),
       });
-      console.error('Validation error:', err);
     } finally {
+      console.log('🔍 DEBUG: Validation process completed');
       setIsValidating(false);
       setValidationStartTime(null);
       setElapsedTime(0);

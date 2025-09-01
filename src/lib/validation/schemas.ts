@@ -1,113 +1,163 @@
 import { z } from 'zod';
 
+// Helper function to safely convert string to number, handling empty strings
+const safeNumber = (val: any) => {
+  if (val === null || val === undefined || val === '') return undefined;
+  const num = Number(val);
+  return isNaN(num) ? undefined : num;
+};
+
+// Helper function to safely handle string values
+const safeString = (val: any) => {
+  if (val === null || val === undefined) return undefined;
+  const str = String(val).trim();
+  return str === '' ? undefined : str;
+};
+// Constants for validation
+const VALID_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const CURRENT_YEAR = new Date().getFullYear();
+const MIN_YEAR = 1900;
+const MAX_YEAR = CURRENT_YEAR + 10;
+
+// Common validators
+const monthRefine = (val: string) => (VALID_MONTHS as readonly string[]).includes(val);
+
 // CSV row validation schema for daily case returns
 export const CaseReturnRowSchema = z.object({
-   // Date fields
-   date_dd: z.coerce.number().min(1).max(31),
-   date_mon: z.string().length(3),
-   date_yyyy: z.coerce.number().min(2015).max(new Date().getFullYear()),
+    // Date fields - activity date
+    date_dd: z.preprocess(safeNumber, z.number().min(1).max(31).optional()),
+    date_mon: z.preprocess(safeString, z.string().length(3).refine(monthRefine, { message: "Month must be a valid 3-letter abbreviation (Jan, Feb, etc.)" }).optional()),
+    date_yyyy: z.preprocess(safeNumber, z.number().min(2015).max(CURRENT_YEAR).optional()),
 
-   // Case identification
-   caseid_type: z.string().min(1).max(20),
-   caseid_no: z.string().min(1).max(50),
+    // Case identification
+    caseid_type: z.preprocess(safeString, z.string().min(1).max(20).optional()),
+    caseid_no: z.preprocess(safeString, z.string().min(1).max(50).optional()),
 
-   // Filing information
-   filed_dd: z.coerce.number().min(1).max(31),
-   filed_mon: z.string().length(3),
-   filed_yyyy: z.coerce.number().min(1960).max(new Date().getFullYear()),
-  
-  // Court information
-  court: z.string().min(1).max(255), // Current court handling the case
-  
-  // Original case (for appeals)
-  original_court: z.string().optional(),
-  original_code: z.string().optional(),
-  original_number: z.string().optional(),
-  original_year: z.coerce.number().optional(),
-  
-  // Case details
-  case_type: z.string().min(1).max(100),
-  judge_1: z.string().min(1).max(255),
-  judge_2: z.string().optional(),
-  judge_3: z.string().optional(),
-  judge_4: z.string().optional(),
-  judge_5: z.string().optional(),
-  judge_6: z.string().optional(),
-  judge_7: z.string().optional(),
-  
-  // Activity information
-  comingfor: z.string().min(1).max(100),
-  outcome: z.string().min(1).max(100),
-  reason_adj: z.string().optional(),
-  
-  // Next hearing date (optional)
-  next_dd: z.coerce.number().min(1).max(31).optional(),
-  next_mon: z.string().length(3).optional(),
-  next_yyyy: z.coerce.number().min(2015).max(new Date().getFullYear()).optional(),
+    // Filing information
+    filed_dd: z.preprocess(safeNumber, z.number().min(1).max(31).optional()),
+    filed_mon: z.preprocess(safeString, z.string().length(3).refine(monthRefine, { message: "Month must be a valid 3-letter abbreviation (Jan, Feb, etc.)" }).optional()),
+    filed_yyyy: z.preprocess(safeNumber, z.number().min(1960).max(CURRENT_YEAR).optional()),
 
-  // Party counts
-  male_applicant: z.coerce.number().min(0).max(999),
-  female_applicant: z.coerce.number().min(0).max(999),
-  organization_applicant: z.coerce.number().min(0).max(999),
-  male_defendant: z.coerce.number().min(0).max(999),
-  female_defendant: z.coerce.number().min(0).max(999),
-  organization_defendant: z.coerce.number().min(0).max(999),
+    // Court information
+    court: z.preprocess(safeString, z.string().min(1).max(255).optional()),
 
-  // Procedural details
-  legalrep: z.enum(['Yes', 'No']),
-  applicant_witness: z.coerce.number().min(0).max(999),
-  defendant_witness: z.coerce.number().min(0).max(999),
-  custody: z.coerce.number().min(0).max(999),
-  other_details: z.string().optional(),
+    // Original case (for appeals) - make these optional as they may be empty
+    original_court: z.preprocess(safeString, z.string().optional()),
+    original_code: z.preprocess(safeString, z.string().optional()),
+    original_number: z.preprocess(safeString, z.string().optional()),
+    original_year: z.preprocess(safeNumber, z.number().min(0).max(CURRENT_YEAR).optional().nullable()),
+
+    // Case details
+    case_type: z.preprocess(safeString, z.string().min(1).max(100).optional()),
+    judge_1: z.preprocess(safeString, z.string().min(1).max(500).optional()),
+    judge_2: z.preprocess(safeString, z.string().optional()),
+    judge_3: z.preprocess(safeString, z.string().optional()),
+    judge_4: z.preprocess(safeString, z.string().optional()),
+    judge_5: z.preprocess(safeString, z.string().optional()),
+    judge_6: z.preprocess(safeString, z.string().optional()),
+    judge_7: z.preprocess(safeString, z.string().optional()),
+
+    // Activity information
+    comingfor: z.preprocess(safeString, z.string().min(1).max(100).optional()),
+    outcome: z.preprocess(safeString, z.string().min(1).max(100).optional()),
+    reason_adj: z.preprocess(safeString, z.string().optional()),
+
+    // Next hearing date (optional) - handle various formats
+    next_dd: z.preprocess(safeNumber, z.number().min(1).max(31).optional()),
+    next_mon: z.preprocess(safeString, z.string().length(3).refine(monthRefine, { message: "Month must be a valid 3-letter abbreviation" }).optional()),
+    next_yyyy: z.preprocess(safeNumber, z.number().min(2015).max(CURRENT_YEAR).optional()),
+
+    // Party counts - individual fields for better data integrity
+    male_applicant: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    female_applicant: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    organization_applicant: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    male_defendant: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    female_defendant: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    organization_defendant: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+
+    // Procedural details
+    legalrep: z.preprocess(safeString, z.enum(['Yes', 'No']).optional().nullable()),
+    applicant_witness: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    defendant_witness: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    custody: z.preprocess(safeNumber, z.number().min(0).max(999).optional().default(0)),
+    other_details: z.preprocess(safeString, z.string().optional()),
+}).transform((data) => {
+  // Post-processing: ensure required fields are present
+  const requiredFields = ['date_dd', 'date_mon', 'date_yyyy', 'caseid_type', 'caseid_no', 'filed_dd', 'filed_mon', 'filed_yyyy', 'court', 'case_type', 'judge_1'];
+  const missingFields = requiredFields.filter(field => !data[field as keyof typeof data]);
+
+  if (missingFields.length > 0) {
+    throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+  }
+
+  return data;
 });
 
 export type CaseReturnRow = z.infer<typeof CaseReturnRowSchema>;
 
 // Database entity validation schemas
 export const CreateCaseSchema = z.object({
-  caseNumber: z.string().min(1).max(50),
-  caseTypeId: z.string().uuid(),
-  filedDate: z.date(),
-  originalCourtId: z.string().uuid().optional(),
-  originalCaseNumber: z.string().max(50).optional(),
-  originalYear: z.number().int().min(1960).max(new Date().getFullYear()).optional(),
-  parties: z.object({
-    applicants: z.object({
-      maleCount: z.number().int().min(0),
-      femaleCount: z.number().int().min(0),
-      organizationCount: z.number().int().min(0),
-    }),
-    defendants: z.object({
-      maleCount: z.number().int().min(0),
-      femaleCount: z.number().int().min(0),
-      organizationCount: z.number().int().min(0),
-    }),
-  }),
-  status: z.enum(['ACTIVE', 'RESOLVED', 'PENDING', 'TRANSFERRED']).default('ACTIVE'),
-  hasLegalRepresentation: z.boolean().default(false),
-});
+    caseNumber: z.string().min(1).max(50),
+    caseTypeId: z.string().uuid(),
+    filedDate: z.date(),
+    originalCourtId: z.string().uuid().optional(),
+    originalCaseNumber: z.string().max(50).optional(),
+    originalYear: z.number().int().min(1960).max(new Date().getFullYear()).optional(),
+    // Individual party count fields (matching database schema)
+    maleApplicant: z.number().int().min(0).max(999).default(0),
+    femaleApplicant: z.number().int().min(0).max(999).default(0),
+    organizationApplicant: z.number().int().min(0).max(999).default(0),
+    maleDefendant: z.number().int().min(0).max(999).default(0),
+    femaleDefendant: z.number().int().min(0).max(999).default(0),
+    organizationDefendant: z.number().int().min(0).max(999).default(0),
+    // CSV-specific fields
+    caseidType: z.string().max(20).optional(),
+    caseidNo: z.string().max(50).optional(),
+    status: z.enum(['ACTIVE', 'RESOLVED', 'PENDING', 'TRANSFERRED', 'DELETED']).default('ACTIVE'),
+    hasLegalRepresentation: z.boolean().default(false),
+  });
 
 export const CreateCaseActivitySchema = z.object({
-  caseId: z.string().uuid(),
-  activityDate: z.date(),
-  activityType: z.string().min(1).max(100),
-  outcome: z.string().min(1).max(100),
-  reasonForAdjournment: z.string().optional(),
-  nextHearingDate: z.date().optional(),
-  primaryJudgeId: z.string().uuid(),
-  hasLegalRepresentation: z.boolean(),
-  applicantWitnesses: z.number().int().min(0).default(0),
-  defendantWitnesses: z.number().int().min(0).default(0),
-  custodyStatus: z.enum(['IN_CUSTODY', 'ON_BAIL', 'NOT_APPLICABLE']),
-  details: z.string().optional(),
-  importBatchId: z.string().uuid(),
-});
+    caseId: z.string().uuid(),
+    activityDate: z.date(),
+    activityType: z.string().min(1).max(100),
+    outcome: z.string().min(1).max(100),
+    reasonForAdjournment: z.string().optional(),
+    nextHearingDate: z.date().optional(),
+    primaryJudgeId: z.string().uuid(),
+    hasLegalRepresentation: z.boolean(),
+    applicantWitnesses: z.number().int().min(0).max(999).default(0),
+    defendantWitnesses: z.number().int().min(0).max(999).default(0),
+    custodyStatus: z.enum(['IN_CUSTODY', 'ON_BAIL', 'NOT_APPLICABLE']),
+    details: z.string().optional(),
+    importBatchId: z.string().uuid(),
+    // Enhanced judge assignments (CSV supports up to 7 judges)
+    judge1: z.string().max(255).optional(),
+    judge2: z.string().max(255).optional(),
+    judge3: z.string().max(255).optional(),
+    judge4: z.string().max(255).optional(),
+    judge5: z.string().max(255).optional(),
+    judge6: z.string().max(255).optional(),
+    judge7: z.string().max(255).optional(),
+    // Enhanced activity details from CSV
+    comingFor: z.string().max(100).optional(),
+    // Enhanced legal representation (store original CSV string)
+    legalRepString: z.string().max(10).optional(),
+    // Enhanced custody status (store original CSV numeric value)
+    custodyNumeric: z.number().int().min(0).max(999).optional(),
+    // Additional details from CSV
+    otherDetails: z.string().optional(),
+  });
 
 export const CreateCourtSchema = z.object({
-   courtName: z.string().min(1).max(255),
-   courtCode: z.string().min(1).max(50),
-   courtType: z.enum(['SC','ELC','ELRC', 'KC', 'SCC', 'COA','MC', 'HC', 'TC']),
-   isActive: z.boolean().default(true),
+    courtName: z.string().min(1).max(255),
+    courtCode: z.string().min(1).max(50),
+    courtType: z.enum(['SC', 'ELC', 'ELRC', 'KC', 'SCC', 'COA', 'MC', 'HC', 'TC']),
+    isActive: z.boolean().default(true),
+    // New fields for original court handling from CSV
+    originalCode: z.string().max(50).optional(),
+    originalNumber: z.string().max(50).optional(),
+    originalYear: z.number().int().min(1960).max(new Date().getFullYear()).optional(),
 });
 
 export const CreateJudgeSchema = z.object({
@@ -208,26 +258,72 @@ export const FileUploadSchema = z.object({
 });
 
 
-// Helper function to validate and transform dates
-export function createDateFromParts(day: number, month: string, year: number): Date {
-  const monthMap: Record<string, number> = {
-    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-  };
-  
-  const monthIndex = monthMap[month];
-  if (monthIndex === undefined) {
-    throw new Error(`Invalid month: ${month}`);
+// Enhanced helper function to validate and transform dates
+export function createDateFromParts(day: number, month: string | number, year: number): Date {
+  // Handle both string month names and numeric months
+  let monthIndex: number;
+
+  if (typeof month === 'string') {
+    const monthMap: Record<string, number> = {
+      'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+      'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+    };
+
+    monthIndex = monthMap[month];
+    if (monthIndex === undefined) {
+      throw new Error(`Invalid month name: ${month}. Expected format: Jan, Feb, Mar, etc.`);
+    }
+  } else {
+    // Handle numeric months (0-11)
+    if (month < 0 || month > 11) {
+      throw new Error(`Invalid month number: ${month}. Expected range: 0-11`);
+    }
+    monthIndex = month;
   }
-  
+
+  // Validate year range
+  if (year < MIN_YEAR || year > MAX_YEAR) {
+    throw new Error(`Invalid year: ${year}. Expected range: ${MIN_YEAR}-${MAX_YEAR}`);
+  }
+
+  // Validate day range
+  if (day < 1 || day > 31) {
+    throw new Error(`Invalid day: ${day}. Expected range: 1-31`);
+  }
+
   const date = new Date(year, monthIndex, day);
-  
-  // Validate the date is real (handles cases like Feb 30)
+
+  // Validate the date is real (handles cases like Feb 30, Apr 31, etc.)
   if (date.getDate() !== day || date.getMonth() !== monthIndex || date.getFullYear() !== year) {
-    throw new Error(`Invalid date: ${day}/${month}/${year}`);
+    throw new Error(`Invalid date combination: ${day}/${typeof month === 'string' ? month : month + 1}/${year}`);
   }
-  
+
   return date;
+}
+
+// Helper function to validate next hearing date (handles optional/empty values)
+export function createOptionalDateFromParts(
+  day?: number | string,
+  month?: string | number,
+  year?: number | string
+): Date | undefined {
+  // If any component is missing or empty, return undefined
+  if (!day || !month || !year) return undefined;
+  if (typeof day === 'string' && day.trim() === '') return undefined;
+  if (typeof month === 'string' && month.trim() === '') return undefined;
+  if (typeof year === 'string' && year.toString().trim() === '') return undefined;
+
+  try {
+    return createDateFromParts(
+      typeof day === 'string' ? parseInt(day) : day,
+      month,
+      typeof year === 'string' ? parseInt(year) : year
+    );
+  } catch (error) {
+    // For optional dates, we can be more lenient and return undefined on validation errors
+    console.warn(`Invalid optional date components: ${day}/${month}/${year} - ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return undefined;
+  }
 }
 
 // Validation helper functions for extracted master data
@@ -285,17 +381,213 @@ export function validateExtractedCaseType(caseTypeName: string): {
   issues: string[];
 } {
   const issues: string[] = [];
-  
+
   if (!caseTypeName || caseTypeName.trim().length === 0) {
     issues.push('Case type name is empty');
   }
-  
+
   if (caseTypeName.length > 100) {
     issues.push('Case type name exceeds maximum length');
   }
-  
+
   return {
     isValid: issues.length === 0,
     issues
+  };
+}
+
+// Additional validation schemas for import-related operations
+export const CreateImportProgressSchema = z.object({
+  batchId: z.string().uuid(),
+  progressPercentage: z.number().int().min(0).max(100).optional(),
+  currentStep: z.string().max(100).optional(),
+  message: z.string().optional(),
+  recordsProcessed: z.number().int().min(0).default(0),
+  totalRecords: z.number().int().min(0).default(0),
+  errorsCount: z.number().int().min(0).default(0),
+  warningsCount: z.number().int().min(0).default(0),
+});
+
+export const CreateImportErrorDetailSchema = z.object({
+  batchId: z.string().uuid(),
+  rowNumber: z.number().int().optional(),
+  columnName: z.string().max(100).optional(),
+  errorType: z.string().min(1).max(50),
+  errorMessage: z.string().min(1),
+  rawValue: z.string().optional(),
+  suggestedFix: z.string().optional(),
+  severity: z.enum(['ERROR', 'WARNING', 'INFO']).default('ERROR'),
+});
+
+// Enhanced validation for CSV data processing
+export function validateCsvRowData(row: any): {
+  isValid: boolean;
+  errors: Array<{ field: string; message: string; value?: any }>;
+  warnings: Array<{ field: string; message: string; value?: any }>;
+} {
+  const errors: Array<{ field: string; message: string; value?: any }> = [];
+  const warnings: Array<{ field: string; message: string; value?: any }> = [];
+
+  // Validate required fields
+  const requiredFields = ['caseid_type', 'caseid_no', 'court', 'case_type', 'judge_1', 'outcome'];
+  for (const field of requiredFields) {
+    if (!row[field] || row[field].toString().trim() === '') {
+      errors.push({
+        field,
+        message: `${field} is required`,
+        value: row[field]
+      });
+    }
+  }
+
+  // Validate date fields
+  const dateFields = ['date_dd', 'filed_dd'];
+  for (const field of dateFields) {
+    const value = row[field];
+    if (value && (isNaN(Number(value)) || Number(value) < 1 || Number(value) > 31)) {
+      errors.push({
+        field,
+        message: `${field} must be a valid day (1-31)`,
+        value
+      });
+    }
+  }
+
+  // Validate month fields
+  const monthFields = ['date_mon', 'filed_mon'];
+  for (const field of monthFields) {
+    const value = row[field];
+    if (value && !(VALID_MONTHS as readonly string[]).includes(value)) {
+      errors.push({
+        field,
+        message: `${field} must be a valid month abbreviation (Jan, Feb, etc.)`,
+        value
+      });
+    }
+  }
+
+  // Validate year fields
+  const yearFields = ['date_yyyy', 'filed_yyyy'];
+  for (const field of yearFields) {
+    const value = row[field];
+    if (value && (isNaN(Number(value)) || Number(value) < MIN_YEAR || Number(value) > MAX_YEAR)) {
+      errors.push({
+        field,
+        message: `${field} must be a valid year (${MIN_YEAR}-${MAX_YEAR})`,
+        value
+      });
+    }
+  }
+
+  // Validate party count fields
+  const partyFields = ['male_applicant', 'female_applicant', 'organization_applicant',
+                      'male_defendant', 'female_defendant', 'organization_defendant'];
+  for (const field of partyFields) {
+    const value = row[field];
+    if (value && (isNaN(Number(value)) || Number(value) < 0 || Number(value) > 999)) {
+      errors.push({
+        field,
+        message: `${field} must be a number between 0 and 999`,
+        value
+      });
+    }
+  }
+
+  // Validate legal representation
+  if (row.legalrep && !['Yes', 'No'].includes(row.legalrep)) {
+    errors.push({
+      field: 'legalrep',
+      message: 'legalrep must be either "Yes" or "No"',
+      value: row.legalrep
+    });
+  }
+
+  // Generate warnings for potential issues
+  if (row.judge_2 && !row.judge_1) {
+    warnings.push({
+      field: 'judge_2',
+      message: 'Secondary judge specified but no primary judge',
+      value: row.judge_2
+    });
+  }
+
+  if (row.next_dd && (!row.next_mon || !row.next_yyyy)) {
+    warnings.push({
+      field: 'next_dd',
+      message: 'Next hearing day specified but missing month or year',
+      value: row.next_dd
+    });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+
+// Validation for bulk import operations
+export const BulkImportValidationSchema = z.object({
+  file: z.instanceof(File),
+  options: z.object({
+    validateOnly: z.boolean().default(false),
+    skipErrors: z.boolean().default(false),
+    batchSize: z.number().int().min(1).max(1000).default(100),
+    maxErrors: z.number().int().min(0).max(1000).default(50),
+  }).optional(),
+});
+
+// Enhanced court type validation with better error messages
+export function validateCourtType(courtType: string): {
+  isValid: boolean;
+  normalizedType?: string;
+  issues: string[];
+} {
+  const issues: string[] = [];
+  const validTypes = ['SC', 'ELC', 'ELRC', 'KC', 'SCC', 'COA', 'MC', 'HC', 'TC'];
+
+  if (!courtType || courtType.trim().length === 0) {
+    issues.push('Court type is required');
+    return { isValid: false, issues };
+  }
+
+  const normalized = courtType.trim().toUpperCase();
+
+  if (!validTypes.includes(normalized)) {
+    issues.push(`Invalid court type: ${courtType}. Valid types: ${validTypes.join(', ')}`);
+    return { isValid: false, issues };
+  }
+
+  return {
+    isValid: true,
+    normalizedType: normalized,
+    issues: []
+  };
+}
+
+// Enhanced case status validation
+export function validateCaseStatus(status: string): {
+  isValid: boolean;
+  normalizedStatus?: string;
+  issues: string[];
+} {
+  const issues: string[] = [];
+  const validStatuses = ['ACTIVE', 'RESOLVED', 'PENDING', 'TRANSFERRED', 'DELETED'];
+
+  if (!status || status.trim().length === 0) {
+    return { isValid: true, normalizedStatus: 'ACTIVE', issues: [] }; // Default to ACTIVE
+  }
+
+  const normalized = status.trim().toUpperCase();
+
+  if (!validStatuses.includes(normalized)) {
+    issues.push(`Invalid case status: ${status}. Valid statuses: ${validStatuses.join(', ')}`);
+    return { isValid: false, issues };
+  }
+
+  return {
+    isValid: true,
+    normalizedStatus: normalized,
+    issues: []
   };
 }

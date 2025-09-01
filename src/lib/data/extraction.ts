@@ -12,7 +12,8 @@ interface CourtExtractionResult {
 export async function extractAndNormalizeCourt(
   courtName: string | undefined,
   courtCode: string | undefined,
-  tx: PrismaTransaction
+  tx: PrismaTransaction,
+  derivedCourtType?: CourtType
 ): Promise<CourtExtractionResult | null> {
   
   if (!courtName || courtName.trim() === '') {
@@ -27,7 +28,7 @@ export async function extractAndNormalizeCourt(
   
   const normalizedCourtName = normalizeCourtName(courtName);
   const normalizedCourtCode = normalizeCourtCode(courtCode);
-  const inferredCourtType = inferCourtType(normalizedCourtName);
+  const inferredCourtType = derivedCourtType || inferCourtType(normalizedCourtName);
   
   // Check if court exists
   let existingCourt = await tx.court.findFirst({
@@ -208,20 +209,61 @@ function generateCourtCode(courtName: string): string {
     .substring(0, 10); // Limit to 10 characters
 }
 
+/**
+ * Derives CourtType from caseid_type prefix according to CSV data structure requirements.
+ * Rules from requirements.md:
+ * - Check for 3-letter SCC first to avoid conflict with SC (Supreme Court)
+ * - Then check 2-letter prefixes for other court types
+ * - Default to TC (Tribunal Court) for unmatched prefixes
+ */
+function deriveCourtTypeFromCaseId(caseidType: string): CourtType {
+  if (!caseidType || typeof caseidType !== 'string') {
+    return CourtType.TC; // Default fallback
+  }
+
+  const prefix = caseidType.toUpperCase().trim();
+
+  // Check for 3-letter SCC first to avoid SC conflict
+  if (prefix.startsWith('SCC')) {
+    return CourtType.SCC;
+  }
+
+  // Check 2-letter prefixes
+  const twoLetterPrefix = prefix.substring(0, 2);
+
+  switch (twoLetterPrefix) {
+    case 'SC':
+      return CourtType.SC;
+    case 'EL':
+      // Check if it's ELC or ELRC
+      return prefix.startsWith('ELC') ? CourtType.ELC : CourtType.ELRC;
+    case 'KC':
+      return CourtType.KC;
+    case 'CO':
+      return CourtType.COA;
+    case 'MC':
+      return CourtType.MC;
+    case 'HC':
+      return CourtType.HC;
+    default:
+      return CourtType.TC; // Default for unmatched prefixes
+  }
+}
+
 function inferCourtType(courtName: string): CourtType {
   const name = courtName.toLowerCase();
-  
-  if (name.includes('supreme court') || name.includes('sc')) return 'SC' as CourtType;
-  if (name.includes('high court') || name.includes('hc')) return 'HC' as CourtType;
-  if (name.includes('magistrate') || name.includes('commercial')) return 'MC' as CourtType;
-  if (name.includes('small claims')) return 'SCC' as CourtType;
-  if (name.includes('court of appeal') || name.includes('coa')) return 'COA' as CourtType;
-  if (name.includes('employment') || name.includes('labour')) return 'ELRC' as CourtType;
-  if (name.includes('environment') || name.includes('land')) return 'ELC' as CourtType;
-  if (name.includes('kadhis') || name.includes('kadhi')) return 'KC' as CourtType;
-  if (name.includes('tribunal')) return 'TC' as CourtType;
 
-  return 'SC' as CourtType; // Default to Supreme Court
+  if (name.includes('supreme court') || name.includes('sc')) return CourtType.SC;
+  if (name.includes('high court') || name.includes('hc')) return CourtType.HC;
+  if (name.includes('magistrate') || name.includes('commercial')) return CourtType.MC;
+  if (name.includes('small claims')) return CourtType.SCC;
+  if (name.includes('court of appeal') || name.includes('coa')) return CourtType.COA;
+  if (name.includes('employment') || name.includes('labour')) return CourtType.ELRC;
+  if (name.includes('environment') || name.includes('land')) return CourtType.ELC;
+  if (name.includes('kadhis') || name.includes('kadhi')) return CourtType.KC;
+  if (name.includes('tribunal')) return CourtType.TC;
+
+  return CourtType.SC; // Default to Supreme Court
 }
 
 // Judge normalization functions

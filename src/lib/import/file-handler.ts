@@ -320,14 +320,23 @@ export async function validateCsvStructure(filePath: string): Promise<{
       ];
 
       stream = createReadStream(filePath)
-        .pipe(csv.default())
+        .pipe(csv.default({
+          mapHeaders: ({ header }) => header.trim()
+        }))
         .on('headers', (headers: string[]) => {
+          // Trim all headers to remove trailing spaces
+          const trimmedHeaders = headers.map(header => header.trim());
+          console.log('🔍 DEBUG: Raw CSV headers:', headers);
+          console.log('🔍 DEBUG: Trimmed CSV headers:', trimmedHeaders);
           columnCount = headers.length;
 
-          // Check for required columns
+          // Check for required columns using trimmed headers
           const missingColumns = requiredColumns.filter(col =>
-            !headers.some(header => header.toLowerCase().trim() === col.toLowerCase())
+            !trimmedHeaders.some(header => header.toLowerCase() === col.toLowerCase())
           );
+
+          console.log('🔍 DEBUG: Required columns:', requiredColumns);
+          console.log('🔍 DEBUG: Missing columns:', missingColumns);
 
           if (missingColumns.length > 0) {
             errors.push({
@@ -372,9 +381,30 @@ export async function validateCsvStructure(filePath: string): Promise<{
         .on('data', (row: any) => {
           rowCount++;
 
+          // Trim all string values to handle whitespace issues
+          const trimmedRow: any = {};
+          for (const [key, value] of Object.entries(row)) {
+            if (typeof value === 'string') {
+              trimmedRow[key] = value.trim();
+            } else {
+              trimmedRow[key] = value;
+            }
+          }
+
+          // Debug logging for first few rows
+          if (rowCount <= 3) {
+            console.log(`🔍 DEBUG: Row ${rowCount} data:`, {
+              caseid_type: trimmedRow.caseid_type,
+              caseid_no: trimmedRow.caseid_no,
+              court: trimmedRow.court,
+              raw_caseid_type: `"${trimmedRow.caseid_type}"`,
+              all_keys: Object.keys(trimmedRow)
+            });
+          }
+
           // Collect first 5 rows as samples
           if (sampleRows.length < 5) {
-            sampleRows.push(row);
+            sampleRows.push(trimmedRow);
           }
 
           // Stop after checking first 100 rows for performance
