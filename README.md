@@ -5,6 +5,7 @@ This is a web application that provides a comprehensive dashboard for monitoring
 ## Features
 
 - **KPI Overview**: At-a-glance cards for critical metrics like Total Filed Cases, Total Resolved Cases, Pending Cases, Average Resolution Time, Clearance Rate, and Backlog Growth.
+- **Data Import System**: Robust CSV data import functionality with validation, background processing, and real-time progress tracking.
 - **Interactive Charts**:
     - **Case Trends**: A line chart showing the comparison of new cases filed, cases resolved, and pending cases over time.
     - **Case Age Distribution**: A bar chart that breaks down pending cases by their age.
@@ -16,6 +17,8 @@ This is a web application that provides a comprehensive dashboard for monitoring
 
 - **Framework**: [Next.js](https://nextjs.org/) (using the App Router)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Database**: PostgreSQL with Prisma ORM
+- **Background Processing**: Redis with BullMQ for asynchronous job processing
 - **UI Components**: Built with [React](https://react.dev/), [ShadCN UI](https://ui.shadcn.com/), and styled with [Tailwind CSS](https://tailwindcss.com/).
 - **Charting**: [Recharts](https://recharts.org/) is used for creating the interactive charts.
 - **Icons**: [Lucide React](https://lucide.dev/guide/packages/lucide-react) for a consistent and clean icon set.
@@ -57,3 +60,4 @@ You can start editing the main page by modifying `src/app/page.tsx`. The page au
 
 For detailed database setup instructions, see [DATABASE_SETUP.md](DATABASE_SETUP.md).
 For Docker-specific instructions, see [DOCKER.md](DOCKER.md).
+For information about the data import system, see [IMPORT_SYSTEM.md](IMPORT_SYSTEM.md).

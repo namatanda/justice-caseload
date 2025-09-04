@@ -63,8 +63,14 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
         // Stop polling if completed or failed
         if (result.status === 'COMPLETED' || result.status === 'FAILED') {
           setIsPolling(false);
-          // Show verification step instead of immediately completing
-          setShowVerification(true);
+          // Add a small delay to ensure database transaction is committed before verification
+          if (result.status === 'COMPLETED') {
+            setTimeout(() => {
+              setShowVerification(true);
+            }, 3000); // Wait 3 seconds before starting verification
+          } else {
+            setShowVerification(true);
+          }
         }
       } catch (err) {
         setError('Failed to fetch import status');
@@ -230,7 +236,17 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
             <div>
               <span className="text-muted-foreground">Started:</span>
               <span className="ml-2">
-                {new Date(status.startedAt).toLocaleTimeString()}
+                {status.startedAt ? 
+                  (() => {
+                    try {
+                      const date = new Date(status.startedAt);
+                      return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleTimeString();
+                    } catch {
+                      return 'Invalid Date';
+                    }
+                  })() 
+                  : 'Not started'
+                }
               </span>
             </div>
             {status.estimatedTimeRemaining && status.status === 'PROCESSING' && (
@@ -245,7 +261,14 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
               <div>
                 <span className="text-muted-foreground">Completed:</span>
                 <span className="ml-2">
-                  {new Date(status.completedAt).toLocaleTimeString()}
+                  {(() => {
+                    try {
+                      const date = new Date(status.completedAt);
+                      return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleTimeString();
+                    } catch {
+                      return 'Invalid Date';
+                    }
+                  })()}
                 </span>
               </div>
             )}

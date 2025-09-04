@@ -4,10 +4,10 @@ import { importQueue } from '@/lib/database/redis';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
-    const { batchId } = params;
+    const { batchId } = await params;
 
     if (!batchId) {
       return NextResponse.json(
@@ -86,10 +86,10 @@ export async function DELETE(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
-    const { batchId } = params;
+    const { batchId } = await params;
 
     if (!batchId) {
       return NextResponse.json(

@@ -65,10 +65,56 @@ export function DataVerification({ batchId, onVerificationComplete }: DataVerifi
       setIsVerifying(true);
       setError(null);
 
+      console.log('Starting verification for batch ID:', batchId);
       const response = await fetch(`/api/import/verify/${batchId}`);
       const result = await response.json();
+      console.log('Verification response:', result);
 
       if (!result.success) {
+        // If the batch is not completed yet, retry after a delay
+        if (result.error?.includes('not completed yet') && retryCount < 5) {
+          console.log(`Batch not ready yet, retrying in 2 seconds... (attempt ${retryCount + 1}/5)`);
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+            verifyData();
+          }, 2000); // Wait 2 seconds before retrying
+          return;
+        }
+
+        // If the batch failed, show the failure details instead of retrying
+        if (result.error?.includes('Current status: FAILED') && result.batchInfo) {
+          setVerificationResult({
+            success: false,
+            verified: false,
+            verificationTime: new Date().toISOString(),
+            batchInfo: {
+              batchId: result.batchInfo.id,
+              expectedRecords: result.batchInfo.totalRecords || 0,
+              actualRecords: 0,
+              status: result.batchInfo.status,
+              completedAt: result.batchInfo.completedAt || new Date().toISOString()
+            },
+            databaseStats: {
+              casesInserted: 0,
+              activitiesInserted: 0,
+              judgeAssignmentsCreated: 0,
+              totalRecordsProcessed: 0
+            },
+            integrityChecks: {
+              foreignKeysValid: false,
+              dataConsistency: false,
+              duplicatesFound: 0,
+              orphanedRecords: 0,
+              passed: false
+            },
+            summary: {
+              message: `Import failed: ${result.batchInfo.successfulRecords || 0} successful, ${result.batchInfo.failedRecords || 0} failed out of ${result.batchInfo.totalRecords || 0} records`,
+              status: 'IMPORT_FAILED'
+            }
+          });
+          return;
+        }
+
         throw new Error(result.error || 'Verification failed');
       }
 
@@ -105,7 +151,10 @@ export function DataVerification({ batchId, onVerificationComplete }: DataVerifi
             <div className="text-center">
               <h3 className="text-lg font-semibold mb-2">Verifying Database Insertion</h3>
               <p className="text-muted-foreground mb-4">
-                Checking that all data was successfully inserted into the database...
+                {retryCount > 0
+                  ? `Waiting for import to complete... (attempt ${retryCount + 1}/5)`
+                  : 'Checking that all data was successfully inserted into the database...'
+                }
               </p>
               <Progress value={75} className="w-full max-w-xs" />
             </div>

@@ -8,22 +8,28 @@ import { ImportHistory } from '@/components/import/import-history';
 import { ProgressTracker } from '@/components/import/progress-tracker';
 import { ValidationResults } from '@/components/import/validation-results';
 import { DatabaseStatusIndicator } from '@/components/ui/database-status-indicator';
+import { SystemStatusIndicator } from '@/components/ui/system-status-indicator';
 import { Upload, History, BarChart3, CheckCircle } from 'lucide-react';
 
 export default function ImportPage() {
   const [activeTab, setActiveTab] = useState('upload');
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [validationResults, setValidationResults] = useState<any>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [showSuccessConfirmation, setShowSuccessConfirmation] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
 
   const handleImportStart = (batchId: string) => {
+    console.log('Import started with batch ID:', batchId);
     setCurrentBatchId(batchId);
     setActiveTab('progress');
   };
 
-  const handleValidationComplete = (results: any) => {
+  const handleValidationComplete = (results: any, file?: File) => {
     setValidationResults(results);
+    if (file) {
+      setOriginalFile(file);
+    }
     setActiveTab('validation');
   };
 
@@ -37,6 +43,7 @@ export default function ImportPage() {
       setShowSuccessConfirmation(false);
       setCurrentBatchId(null);
       setValidationResults(null);
+      setOriginalFile(null);
       setActiveTab('history');
     }, 3000);
   };
@@ -52,7 +59,12 @@ export default function ImportPage() {
                 Upload CSV files and manage data imports for the Justice Caseload system
               </p>
             </div>
-            <DatabaseStatusIndicator />
+            <div>
+              <div className="flex items-center space-x-4">
+                <DatabaseStatusIndicator showLabel={true} />
+                <SystemStatusIndicator />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -147,7 +159,11 @@ export default function ImportPage() {
                 </CardHeader>
                 <CardContent>
                   {validationResults ? (
-                    <ValidationResults results={validationResults} />
+                    <ValidationResults 
+                      results={validationResults} 
+                      onImportStart={handleImportStart}
+                      originalFile={originalFile || undefined}
+                    />
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       No validation results available

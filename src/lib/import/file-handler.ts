@@ -199,24 +199,24 @@ export async function saveUploadedFile(
   try {
     // Ensure upload directory exists
     await fs.mkdir(uploadDir, { recursive: true });
-    
+
     // Generate unique filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${timestamp}_${file.name}`;
     const filePath = join(uploadDir, filename);
-    
+
     // Convert File to Buffer (in browser/Node.js environment)
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
+
     // Calculate checksum
     const hash = createHash('sha256');
     hash.update(buffer);
     const checksum = hash.digest('hex');
-    
+
     // Save file
     await fs.writeFile(filePath, buffer);
-    
+
     return {
       success: true,
       filePath,
@@ -243,7 +243,7 @@ async function detectTextFile(filePath: string): Promise<boolean> {
 
       // Null byte or non-printable characters (except common whitespace)
       if (byte === 0 ||
-          (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13)) {
+        (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13)) {
         return false;
       }
     }
@@ -290,23 +290,44 @@ export async function validateCsvStructure(filePath: string): Promise<{
       let rowCount = 0;
       let stream: any = null;
 
-      // Add timeout protection (30 seconds max)
+      // Add timeout protection (120 seconds max for large files)
       const timeout = setTimeout(() => {
         if (stream) {
           stream.destroy();
         }
-        resolve({
-          isValid: false,
-          errors: [{
-            type: 'structure',
-            severity: 'error',
-            message: 'CSV validation timed out. File may be too large or corrupted.',
-            suggestion: 'Try with a smaller file or check if the CSV file is properly formatted.',
-            field: 'timeout'
-          }],
-          warnings: []
-        });
-      }, 30000);
+
+        // Try to get file size for better error messaging
+        try {
+          const { statSync } = require('fs');
+          const stats = statSync(filePath);
+          const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+
+          resolve({
+            isValid: false,
+            errors: [{
+              type: 'structure',
+              severity: 'error',
+              message: `CSV validation timed out. File size: ${fileSizeMB}MB with possibly high row count.`,
+              suggestion: 'For large files (>10,000 rows), try our batch import tool or split the file into smaller chunks of 5,000 rows each.',
+              field: 'timeout'
+            }],
+            warnings: []
+          });
+        } catch (e) {
+          // If we can't get file stats, use generic message
+          resolve({
+            isValid: false,
+            errors: [{
+              type: 'structure',
+              severity: 'error',
+              message: 'CSV validation timed out. File may be too large or corrupted.',
+              suggestion: 'Try with a smaller file (under 10,000 rows) or check if the CSV file is properly formatted.',
+              field: 'timeout'
+            }],
+            warnings: []
+          });
+        }
+      }, 120000); // 2 minutes timeout
 
       const requiredColumns = [
         'date_dd', 'date_mon', 'date_yyyy',
@@ -326,17 +347,12 @@ export async function validateCsvStructure(filePath: string): Promise<{
         .on('headers', (headers: string[]) => {
           // Trim all headers to remove trailing spaces
           const trimmedHeaders = headers.map(header => header.trim());
-          console.log('🔍 DEBUG: Raw CSV headers:', headers);
-          console.log('🔍 DEBUG: Trimmed CSV headers:', trimmedHeaders);
           columnCount = headers.length;
 
           // Check for required columns using trimmed headers
           const missingColumns = requiredColumns.filter(col =>
             !trimmedHeaders.some(header => header.toLowerCase() === col.toLowerCase())
           );
-
-          console.log('🔍 DEBUG: Required columns:', requiredColumns);
-          console.log('🔍 DEBUG: Missing columns:', missingColumns);
 
           if (missingColumns.length > 0) {
             errors.push({
@@ -391,25 +407,31 @@ export async function validateCsvStructure(filePath: string): Promise<{
             }
           }
 
-          // Debug logging for first few rows
-          if (rowCount <= 3) {
-            console.log(`🔍 DEBUG: Row ${rowCount} data:`, {
-              caseid_type: trimmedRow.caseid_type,
-              caseid_no: trimmedRow.caseid_no,
-              court: trimmedRow.court,
-              raw_caseid_type: `"${trimmedRow.caseid_type}"`,
-              all_keys: Object.keys(trimmedRow)
-            });
-          }
-
           // Collect first 5 rows as samples
           if (sampleRows.length < 5) {
             sampleRows.push(trimmedRow);
           }
 
-          // Stop after checking first 100 rows for performance
-          if (rowCount >= 100 && stream) {
-            stream.destroy();
+          // Stop after checking first few rows for performance with large files
+          // For large files, we only need to validate a sample of rows to determine structure
+          // This improves performance significantly for files with thousands of rows
+          if (rowCount >= 200) {
+            // Reached maximum sample size, no need to process more rows for validation
+            if (stream) {
+              // Destroy the stream but in a way that triggers the 'end' event
+              // so we get proper completion of the validation process
+              stream.push(null); // Signal end of data
+              stream.destroy();
+
+              // Add a sampling note
+              warnings.push({
+                type: 'structure',
+                severity: 'info',
+                message: `Large file detected. Validated structure using a sample of ${rowCount} rows.`,
+                suggestion: 'Full validation will occur during actual import processing.',
+                field: 'sampling'
+              });
+            }
           }
         })
         .on('end', () => {
@@ -496,15 +518,15 @@ export async function cleanupOldFiles(
   try {
     const files = await fs.readdir(uploadDir);
     const cutoffTime = Date.now() - (maxAgeHours * 60 * 60 * 1000);
-    
+
     let deletedFiles = 0;
     const errors: string[] = [];
-    
+
     for (const filename of files) {
       try {
         const filePath = join(uploadDir, filename);
         const stats = await fs.stat(filePath);
-        
+
         if (stats.mtime.getTime() < cutoffTime) {
           await fs.unlink(filePath);
           deletedFiles++;
@@ -513,7 +535,7 @@ export async function cleanupOldFiles(
         errors.push(`Failed to delete ${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
-    
+
     return { deletedFiles, errors };
   } catch (error) {
     return {
@@ -527,7 +549,7 @@ export function generateSecureFilename(originalName: string): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 15);
   const extension = originalName.split('.').pop() || 'csv';
-  
+
   return `${timestamp}_${random}.${extension}`;
 }
 

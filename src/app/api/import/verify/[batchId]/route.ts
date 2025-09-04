@@ -1,17 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/database/prisma';
+import { prisma } from '@/lib/database';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
-    const { batchId } = params;
+    const { batchId } = await params;
+
+    console.log('Verification request for batch ID:', batchId);
 
     if (!batchId) {
       return NextResponse.json(
         { success: false, error: 'Batch ID is required' },
         { status: 400 }
+      );
+    }
+
+    // Test database connection first
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log('Database connection test passed');
+    } catch (dbError) {
+      console.error('Database connection test failed:', dbError);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Database connection failed',
+          details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+        },
+        { status: 500 }
       );
     }
 
@@ -30,8 +48,66 @@ export async function GET(
     });
 
     if (!batch) {
+      // Get total count of all batches
+      const totalBatches = await prisma.dailyImportBatch.count();
+      
+      // Get recent batches for debugging
+      const recentBatches = await prisma.dailyImportBatch.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, status: true, createdAt: true, filename: true }
+      });
+      
+      // Check if our batch exists with a different query
+      const allBatches = await prisma.dailyImportBatch.findMany({
+        where: {
+          id: {
+            contains: batchId.substring(0, 8) // Check first 8 characters
+          }
+        },
+        select: { id: true, status: true, createdAt: true }
+      });
+      
+      // Check if batch exists with exact ID but different casing
+      const exactBatch = await prisma.dailyImportBatch.findMany({
+        where: {
+          id: {
+            equals: batchId,
+            mode: 'insensitive'
+          }
+        },
+        select: { id: true, status: true, createdAt: true }
+      });
+      
+      console.log('Batch not found. Debug info:');
+      console.log('- Total batches in database:', totalBatches);
+      console.log('- Requested batch ID:', batchId);
+      console.log('- Batch ID length:', batchId.length);
+      console.log('- Batch ID type:', typeof batchId);
+      console.log('- Recent batches:', recentBatches);
+      console.log('- Similar batches:', allBatches);
+      console.log('- Exact match (case insensitive):', exactBatch);
+      
       return NextResponse.json(
-        { success: false, error: 'Import batch not found' },
+        { 
+          success: false, 
+          error: `Import batch not found: ${batchId}`,
+          debug: {
+            requestedId: batchId,
+            idLength: batchId.length,
+            idType: typeof batchId,
+            totalBatches,
+            recentBatches: recentBatches.map(b => ({ 
+              id: b.id, 
+              status: b.status, 
+              filename: b.filename,
+              createdAt: b.createdAt,
+              matches: b.id === batchId
+            })),
+            similarBatches: allBatches,
+            exactMatches: exactBatch
+          }
+        },
         { status: 404 }
       );
     }
@@ -40,8 +116,16 @@ export async function GET(
       return NextResponse.json(
         {
           success: false,
-          error: 'Import batch is not completed yet',
-          status: batch.status
+          error: `Import batch is not completed yet. Current status: ${batch.status}`,
+          status: batch.status,
+          batchInfo: {
+            id: batch.id,
+            status: batch.status,
+            totalRecords: batch.totalRecords,
+            successfulRecords: batch.successfulRecords,
+            failedRecords: batch.failedRecords,
+            completedAt: batch.completedAt
+          }
         },
         { status: 400 }
       );

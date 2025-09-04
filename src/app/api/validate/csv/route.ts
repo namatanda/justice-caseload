@@ -38,6 +38,16 @@ export async function POST(request: NextRequest) {
     const uploadDir = process.env.UPLOAD_DIR || './uploads';
     await mkdir(uploadDir, { recursive: true });
 
+    // Get file size for logging and potential large file handling
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    console.log(`Processing CSV file: ${file.name}, Size: ${fileSizeMB}MB`);
+    
+    // Check if file is very large (potentially problematic)
+    const isVeryLarge = file.size > 5 * 1024 * 1024; // 5MB threshold
+    if (isVeryLarge) {
+      console.log(`Large file detected (${fileSizeMB}MB). Using optimized validation.`);
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const hash = createHash('sha256');
@@ -69,6 +79,17 @@ export async function POST(request: NextRequest) {
       const validationErrors: ValidationError[] = [];
       const validationWarnings: ValidationError[] = [];
       const validSampleRows: any[] = [];
+
+      // Add info about large files if relevant
+      if (file.size > 2 * 1024 * 1024) { // 2MB+
+        validationWarnings.push({
+          type: 'data',
+          severity: 'info',
+          message: `Large file detected: ${(file.size / (1024 * 1024)).toFixed(2)}MB. Processing may take longer.`,
+          suggestion: 'For very large files, consider using batch import mode for better performance.',
+          field: 'fileSize'
+        });
+      }
 
       if (structureValidation.sampleRows) {
         for (let i = 0; i < structureValidation.sampleRows.length; i++) {

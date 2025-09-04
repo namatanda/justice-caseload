@@ -7,11 +7,11 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { DatabaseErrorAlert } from '@/components/ui/database-error-alert';
-import { Upload, FileText, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 
 interface FileUploadProps {
   onImportStart: (batchId: string) => void;
-  onValidationComplete: (results: any) => void;
+  onValidationComplete: (results: any, file?: File) => void;
 }
 
 export function FileUpload({ onImportStart, onValidationComplete }: FileUploadProps) {
@@ -79,6 +79,20 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
     setElapsedTime(0);
     setError(null);
 
+    // Add validation timeout for large files (3 minutes)
+    let validationTimeout: NodeJS.Timeout | null = null;
+    
+    if (isLargeFile(selectedFile)) {
+      validationTimeout = setTimeout(() => {
+        console.log('⚠️ DEBUG: Validation timeout safety triggered');
+        setError({
+          message: 'Validation is taking longer than expected. For very large files (>10,000 rows), you may need to split the file into smaller parts.',
+          timestamp: new Date().toISOString(),
+        });
+        setIsValidating(false);
+      }, 180000); // 3 minutes timeout for UI feedback
+    }
+
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -92,6 +106,10 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
       console.log('🔍 DEBUG: Validation response status:', response.status);
       const result = await response.json();
       console.log('🔍 DEBUG: Validation result:', result);
+
+      if (validationTimeout) {
+        clearTimeout(validationTimeout);
+      }
 
       if (!result.success) {
         // Create a more user-friendly error message
@@ -109,8 +127,12 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
 
       console.log('🔍 DEBUG: Validation successful, setting results');
       setValidationResults(result);
-      onValidationComplete(result);
+      onValidationComplete(result, selectedFile);
     } catch (err) {
+      if (validationTimeout) {
+        clearTimeout(validationTimeout);
+      }
+      
       const errorMessage = err instanceof Error ? err.message : 'Failed to validate file';
       console.error('❌ DEBUG: Validation error:', err);
       setError({
@@ -135,8 +157,18 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
     setUploadProgress(10);
 
     try {
+      // Check Redis connection first - for user feedback
+      const redisAvailable = await checkRedisStatus();
+      
       const formData = new FormData();
       formData.append('file', selectedFile);
+      
+      // If Redis isn't available, provide feedback to user
+      if (!redisAvailable) {
+        console.log('⚠️ Redis not available, uploads will use synchronous processing');
+        // Add warning about limited processing
+        formData.append('processingMode', 'sync');
+      }
 
       console.log('📡 Sending upload request to /api/import/upload...');
       setUploadProgress(25);
@@ -154,9 +186,20 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
 
       if (!result.success) {
         console.error('❌ Upload failed:', result.error);
+        
+        // Handle specific error case for previously failed imports
+        let errorMessage = result.error || 'Upload failed';
+        let errorDetails = result.details || 'Unknown upload error';
+        
+        // Improve error message for duplicate detection failures
+        if (errorDetails && errorDetails.includes('has already been imported')) {
+          errorMessage = 'This file appears to have been previously imported';
+          errorDetails = 'If the previous import failed or had 0% success rate, you can now retry it with the same file.';
+        }
+        
         setError({
-          message: result.error || 'Upload failed',
-          details: result.details || 'Unknown upload error',
+          message: errorMessage,
+          details: errorDetails,
           code: 'UPLOAD_ERROR',
           timestamp: new Date().toISOString(),
         });
@@ -195,6 +238,25 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
     const seconds = Math.floor(milliseconds / 1000);
     const ms = Math.floor((milliseconds % 1000) / 100);
     return `${seconds}.${ms}s`;
+  };
+
+  // Check if file is potentially large
+  const isLargeFile = (file: File | null): boolean => {
+    if (!file) return false;
+    // Consider files over 1MB potentially large
+    return file.size > 1024 * 1024;
+  };
+  
+  // Check Redis status before uploading
+  const checkRedisStatus = async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/workers/init');
+      const result = await response.json();
+      return result.redisConnected;
+    } catch (error) {
+      console.error('❌ Redis status check failed:', error);
+      return false;
+    }
   };
 
   return (
@@ -246,6 +308,22 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
             </div>
           </CardContent>
         </Card>
+      )}
+      
+      {/* Large File Guidelines */}
+      {selectedFile && isLargeFile(selectedFile) && (
+        <Alert className="bg-blue-50 border-blue-200">
+          <Info className="h-5 w-5 text-blue-600" />
+          <AlertDescription className="text-sm text-blue-800">
+            <p className="font-medium mb-1">Guidelines for large files:</p>
+            <ul className="list-disc list-inside space-y-1 text-xs">
+              <li>Validation might take longer for files with many rows (up to 2 minutes)</li>
+              <li>For files with more than 10,000 rows, consider splitting into smaller batches</li>
+              <li>Ensure all required columns are present and properly formatted</li>
+              <li>Make sure Redis and background workers are connected for better performance</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Validation Results */}

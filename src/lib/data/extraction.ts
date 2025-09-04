@@ -30,6 +30,14 @@ export async function extractAndNormalizeCourt(
   const normalizedCourtCode = normalizeCourtCode(courtCode);
   const inferredCourtType = derivedCourtType || inferCourtType(normalizedCourtName);
   
+  console.log('🏛️ PROCESSING COURT:', {
+    originalName: courtName,
+    normalizedName: normalizedCourtName,
+    normalizedCode: normalizedCourtCode,
+    inferredType: inferredCourtType,
+    derivedType: derivedCourtType
+  });
+
   // Check if court exists
   let existingCourt = await tx.court.findFirst({
     where: {
@@ -42,6 +50,13 @@ export async function extractAndNormalizeCourt(
   });
   
   if (existingCourt) {
+    console.log('✅ FOUND EXISTING COURT:', {
+      id: existingCourt.id,
+      name: existingCourt.courtName,
+      code: existingCourt.courtCode,
+      type: existingCourt.courtType
+    });
+    
     return {
       courtId: existingCourt.id,
       courtName: existingCourt.courtName,
@@ -49,14 +64,26 @@ export async function extractAndNormalizeCourt(
     };
   }
   
+  // Prepare new court data
+  const newCourtData = {
+    courtName: normalizedCourtName,
+    courtCode: normalizedCourtCode || generateCourtCode(normalizedCourtName),
+    courtType: inferredCourtType,
+    isActive: true
+  };
+
+  console.log('📝 CREATING NEW COURT:', newCourtData);
+
   // Create new court
   const newCourt = await tx.court.create({
-    data: {
-      courtName: normalizedCourtName,
-      courtCode: normalizedCourtCode || generateCourtCode(normalizedCourtName),
-      courtType: inferredCourtType,
-      isActive: true
-    }
+    data: newCourtData
+  });
+
+  console.log('✅ NEW COURT CREATED:', {
+    id: newCourt.id,
+    name: newCourt.courtName,
+    code: newCourt.courtCode,
+    type: newCourt.courtType
   });
   
   return {
@@ -88,6 +115,13 @@ export async function extractAndNormalizeJudge(
   const normalizedName = normalizeJudgeName(judgeFullName);
   const { firstName, lastName } = parseJudgeName(normalizedName);
   
+  console.log('👨‍⚖️ PROCESSING JUDGE:', {
+    originalName: judgeFullName,
+    normalizedName,
+    firstName,
+    lastName
+  });
+  
   // Check if judge exists
   let existingJudge = await tx.judge.findFirst({
     where: {
@@ -104,6 +138,13 @@ export async function extractAndNormalizeJudge(
   });
   
   if (existingJudge) {
+    console.log('✅ FOUND EXISTING JUDGE:', {
+      id: existingJudge.id,
+      fullName: existingJudge.fullName,
+      firstName: existingJudge.firstName,
+      lastName: existingJudge.lastName
+    });
+    
     return {
       judgeId: existingJudge.id,
       judgeName: existingJudge.fullName,
@@ -111,14 +152,26 @@ export async function extractAndNormalizeJudge(
     };
   }
   
+  // Prepare new judge data
+  const newJudgeData = {
+    fullName: normalizedName,
+    firstName,
+    lastName,
+    isActive: true
+  };
+
+  console.log('📝 CREATING NEW JUDGE:', newJudgeData);
+  
   // Create new judge
   const newJudge = await tx.judge.create({
-    data: {
-      fullName: normalizedName,
-      firstName,
-      lastName,
-      isActive: true
-    }
+    data: newJudgeData
+  });
+
+  console.log('✅ NEW JUDGE CREATED:', {
+    id: newJudge.id,
+    fullName: newJudge.fullName,
+    firstName: newJudge.firstName,
+    lastName: newJudge.lastName
   });
   
   return {
@@ -143,6 +196,12 @@ export async function extractAndNormalizeCaseType(
   const normalizedName = normalizeCaseTypeName(caseTypeName);
   const caseTypeCode = generateCaseTypeCode(normalizedName);
   
+  console.log('📋 PROCESSING CASE TYPE:', {
+    originalName: caseTypeName,
+    normalizedName,
+    generatedCode: caseTypeCode
+  });
+  
   // Check if case type exists
   let existingCaseType = await tx.caseType.findFirst({
     where: {
@@ -154,17 +213,35 @@ export async function extractAndNormalizeCaseType(
   });
   
   if (existingCaseType) {
+    console.log('✅ FOUND EXISTING CASE TYPE:', {
+      id: existingCaseType.id,
+      name: existingCaseType.caseTypeName,
+      code: existingCaseType.caseTypeCode
+    });
+    
     return existingCaseType.id;
   }
   
+  // Prepare new case type data
+  const newCaseTypeData = {
+    caseTypeName: normalizedName,
+    caseTypeCode,
+    description: generateCaseTypeDescription(normalizedName),
+    isActive: true
+  };
+
+  console.log('📝 CREATING NEW CASE TYPE:', newCaseTypeData);
+  
   // Create new case type
   const newCaseType = await tx.caseType.create({
-    data: {
-      caseTypeName: normalizedName,
-      caseTypeCode,
-      description: generateCaseTypeDescription(normalizedName),
-      isActive: true
-    }
+    data: newCaseTypeData
+  });
+
+  console.log('✅ NEW CASE TYPE CREATED:', {
+    id: newCaseType.id,
+    name: newCaseType.caseTypeName,
+    code: newCaseType.caseTypeCode,
+    description: newCaseType.description
   });
   
   return newCaseType.id;

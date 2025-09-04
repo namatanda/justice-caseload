@@ -1,0 +1,37 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/database/prisma';
+
+export async function GET() {
+  try {
+    const batches = await prisma.dailyImportBatch.findMany({
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        filename: true,
+        totalRecords: true,
+        successfulRecords: true,
+        failedRecords: true,
+        createdAt: true,
+        completedAt: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      batches,
+      count: batches.length
+    });
+  } catch (error) {
+    console.error('Error fetching batches:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to fetch batches',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}

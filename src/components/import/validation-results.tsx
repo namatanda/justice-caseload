@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, XCircle, AlertTriangle, Download, Eye } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Download, Eye, Upload } from 'lucide-react';
+import { useState } from 'react';
 
 interface ValidationResultsProps {
   results: {
@@ -15,7 +16,10 @@ interface ValidationResultsProps {
     warnings: ValidationError[];
     recordCount: number;
     previewData: any[];
+    checksum?: string;
   };
+  onImportStart?: (batchId: string) => void;
+  originalFile?: File;
 }
 
 interface ValidationError {
@@ -28,9 +32,10 @@ interface ValidationError {
   rawValue?: any;
 }
 
-export function ValidationResults({ results }: ValidationResultsProps) {
+export function ValidationResults({ results, onImportStart, originalFile }: ValidationResultsProps) {
   const hasErrors = results.errors && results.errors.length > 0;
   const hasWarnings = results.warnings && results.warnings.length > 0;
+  const [isImporting, setIsImporting] = useState(false);
 
   const downloadErrors = () => {
     const csvContent = [
@@ -72,6 +77,55 @@ export function ValidationResults({ results }: ValidationResultsProps) {
     a.download = 'data-preview.csv';
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    if (!onImportStart || !originalFile) {
+      alert('Original file not available. Please go back to the Upload tab to complete the import process.');
+      return;
+    }
+
+    // Create confirmation message
+    let confirmMessage = `🚀 Ready to Import ${results.recordCount} rows of data?\n\nThis action will:\n• Upload CSV to database\n• Process case activities\n• Create court/judge records\n\n`;
+
+    if (hasErrors) {
+      confirmMessage += `⚠️ WARNING: ${results.errors.length} validation error(s) found.\nSome data may not import correctly.\n\n`;
+    }
+
+    confirmMessage += `⚠️ This cannot be easily undone. Continue?`;
+
+    const confirmed = window.confirm(confirmMessage);
+
+    if (!confirmed) return;
+
+    setIsImporting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', originalFile);
+
+      const response = await fetch('/api/import/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        alert(`Import failed: ${result.error}\n\nDetails: ${result.details || 'Unknown error'}`);
+        return;
+      }
+
+      // Call the import start callback to switch to progress tracking
+      console.log('Calling onImportStart with batch ID:', result.batchId);
+      onImportStart(result.batchId);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import file';
+      alert(`Import failed: ${errorMessage}`);
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -282,10 +336,10 @@ export function ValidationResults({ results }: ValidationResultsProps) {
         </Card>
       )}
 
-      {/* Validation Status */}
+      {/* Validation Status & Import Action */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               {results.valid ? (
                 <>
@@ -303,6 +357,67 @@ export function ValidationResults({ results }: ValidationResultsProps) {
               {results.valid ? "Ready to Import" : "Needs Correction"}
             </Badge>
           </div>
+
+          {/* Import Button */}
+          {results.valid && (
+            <div className="border-t pt-6 bg-gradient-to-r from-green-50 to-blue-50 -mx-6 -mb-6 px-6 pb-6 rounded-b-lg">
+              <div className="text-center">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Ready to Import!</h3>
+                  <p className="text-sm text-gray-600">
+                    Your file has been validated and is ready for database import.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleImport}
+                  disabled={isImporting || !originalFile}
+                  size="lg"
+                  className={`w-full text-white font-bold py-6 px-8 text-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:transform-none ${hasErrors
+                      ? 'bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400'
+                      : 'bg-green-600 hover:bg-green-700 disabled:bg-gray-400'
+                    }`}
+                >
+                  <div className="flex items-center justify-center gap-3">
+                    {isImporting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        IMPORTING DATA... Please wait
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6" />
+                        🚀 START IMPORT ({results.recordCount} rows)
+                        {hasErrors ? (
+                          <AlertTriangle className="h-6 w-6" />
+                        ) : (
+                          <CheckCircle className="h-6 w-6" />
+                        )}
+                      </>
+                    )}
+                  </div>
+                </Button>
+
+                {!originalFile && (
+                  <p className="text-sm text-red-600 mt-2">
+                    ⚠️ Original file not available. Please go back to Upload tab.
+                  </p>
+                )}
+              </div>
+
+              {hasErrors && (
+                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                    <span className="font-medium text-yellow-800">Validation Issues Found</span>
+                  </div>
+                  <p className="text-sm text-yellow-700">
+                    Found {results.errors.length} validation error(s). You can still proceed with the import, but some data may not be processed correctly.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

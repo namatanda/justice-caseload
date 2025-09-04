@@ -7,19 +7,54 @@ import { initiateDailyImport, processCsvImport } from '@/lib/import/csv-processo
 import { IMPORT_CONFIG } from '@/lib/import';
 import { checkRedisConnection } from '@/lib/database/redis';
 import type { ImportJobData } from '@/lib/database/redis';
+import { prisma } from '@/lib/database';
+
+async function getOrCreateSystemUser(): Promise<string> {
+  try {
+    console.log('Getting or creating system user...');
+    
+    // Try to find an existing admin user
+    let systemUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: 'admin@justice.go.ke' },
+          { email: 'system@justice.go.ke' },
+          { role: 'ADMIN' }
+        ]
+      }
+    });
+
+    console.log('Existing system user found:', systemUser ? { id: systemUser.id, email: systemUser.email } : 'None');
+
+    // If no admin user exists, create a system user
+    if (!systemUser) {
+      console.log('Creating new system user...');
+      systemUser = await prisma.user.create({
+        data: {
+          email: 'system@justice.go.ke',
+          name: 'System Import User',
+          role: 'ADMIN',
+          isActive: true,
+        }
+      });
+      console.log('System user created:', { id: systemUser.id, email: systemUser.email });
+    }
+
+    return systemUser.id;
+  } catch (error) {
+    console.error('Failed to get/create system user:', error);
+    throw new Error('Failed to initialize system user for import');
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('📡 UPLOAD API: Received upload request');
-
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const config = formData.get('config') ? JSON.parse(formData.get('config') as string) : {};
-
-    console.log('📡 UPLOAD API: File received:', file?.name, 'Size:', file?.size);
+    const processingMode = formData.get('processingMode') as string || 'auto';
 
     if (!file) {
-      console.error('❌ UPLOAD API: No file provided');
       return NextResponse.json(
         { success: false, error: 'No file provided' },
         { status: 400 }
@@ -57,6 +92,7 @@ export async function POST(request: NextRequest) {
 
     // Validate CSV structure
     const structureValidation = await validateCsvStructure(saveResult.filePath!);
+    
     if (!structureValidation.isValid) {
       return NextResponse.json(
         {
@@ -68,51 +104,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user ID from request (you may need to implement authentication)
-    const userId = 'system'; // Placeholder - implement proper user authentication
+    // Get or create system user for imports
+    const userId = await getOrCreateSystemUser();
 
     // Check Redis connection for queue-based processing
-    const isRedisAvailable = await checkRedisConnection();
-    console.log('🔍 UPLOAD API: Redis available for queue processing:', isRedisAvailable);
+    const isRedisAvailable = processingMode === 'sync' ? false : await checkRedisConnection();
+    console.log(`Redis availability: ${isRedisAvailable}, processing mode: ${processingMode}`);
 
     if (isRedisAvailable) {
       // Use queue-based processing (asynchronous)
-      console.log('🚀 UPLOAD API: Using queue-based import processing');
+      try {
+        const importResult = await initiateDailyImport(
+          saveResult.filePath!,
+          file.name,
+          file.size,
+          userId
+        );
 
-      const importResult = await initiateDailyImport(
-        saveResult.filePath!,
-        file.name,
-        file.size,
-        userId
-      );
-
-      console.log('🚀 UPLOAD API: Import initiation result:', importResult);
-
-      if (!importResult.success) {
-        console.error('❌ UPLOAD API: Failed to initiate import:', importResult);
+        if (!importResult.success) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Failed to initiate import',
+              details: 'Import initiation failed'
+            },
+            { status: 500 }
+          );
+        }
+        
+        return NextResponse.json({
+          success: true,
+          batchId: importResult.batchId,
+          message: 'Import initiated successfully (async processing)',
+          processingMode: 'async',
+          previewData: structureValidation.sampleRows?.slice(0, 10),
+          estimatedProcessingTime: Math.ceil((file.size / (1024 * 1024)) * 30), // Rough estimate: 30 seconds per MB
+        });
+        
+      } catch (error) {
+        console.error('Import initiation failed:', error);
+        
         return NextResponse.json(
           {
             success: false,
             error: 'Failed to initiate import',
-            details: 'Import initiation failed'
+            details: error instanceof Error ? error.message : 'Unknown error during import initiation'
           },
           { status: 500 }
         );
       }
-
-      console.log('✅ UPLOAD API: Import initiated successfully, batch ID:', importResult.batchId);
-      return NextResponse.json({
-        success: true,
-        batchId: importResult.batchId,
-        message: 'Import initiated successfully (async processing)',
-        processingMode: 'async',
-        previewData: structureValidation.sampleRows?.slice(0, 10),
-        estimatedProcessingTime: Math.ceil((file.size / (1024 * 1024)) * 30), // Rough estimate: 30 seconds per MB
-      });
     } else {
       // Fallback to synchronous processing
-      console.log('⚡ UPLOAD API: Redis not available, using synchronous import processing');
-
       try {
         // Create import batch record synchronously
         const { prisma } = await import('@/lib/database');
@@ -120,16 +162,18 @@ export async function POST(request: NextRequest) {
           .update(await import('fs').then(fs => fs.readFileSync(saveResult.filePath!)))
           .digest('hex');
 
-        // Check for duplicate imports
+        // Check for duplicate imports, but exclude failed or empty imports
         const existingImport = await prisma.dailyImportBatch.findFirst({
           where: {
             fileChecksum: checksum,
-            status: { in: ['COMPLETED', 'PROCESSING'] }
+            status: { in: ['COMPLETED', 'PROCESSING'] },
+            // Only consider as duplicate if it had some successful records
+            successfulRecords: { gt: 0 }
           }
         });
 
         if (existingImport) {
-          throw new Error(`File has already been imported. Batch ID: ${existingImport.id}`);
+          throw new Error(`File has already been imported successfully. Batch ID: ${existingImport.id}`);
         }
 
         // Create import batch
@@ -149,7 +193,6 @@ export async function POST(request: NextRequest) {
         });
 
         // Process synchronously
-        console.log('⚙️ UPLOAD API: Starting synchronous processing...');
         const syncJobData: ImportJobData = {
           filePath: saveResult.filePath!,
           filename: file.name,
@@ -159,9 +202,7 @@ export async function POST(request: NextRequest) {
           batchId: importBatch.id,
         };
 
-        console.log('⚙️ UPLOAD API: Processing CSV import synchronously...');
         await processCsvImport(syncJobData);
-        console.log('✅ UPLOAD API: Synchronous processing completed');
 
         return NextResponse.json({
           success: true,
@@ -172,7 +213,7 @@ export async function POST(request: NextRequest) {
         });
 
       } catch (syncError) {
-        console.error('❌ Synchronous import failed:', syncError);
+        console.error('Synchronous import failed:', syncError);
         return NextResponse.json(
           {
             success: false,
@@ -185,7 +226,8 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Upload API error:', error);
+    
     return NextResponse.json(
       {
         success: false,
