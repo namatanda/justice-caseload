@@ -34,6 +34,7 @@ export interface PaginatedCases {
 }
 
 export interface CaseDetails extends Case {
+  courtName: string;
   caseType: { caseTypeName: string; caseTypeCode: string };
   originalCourt?: { courtName: string; courtType: string } | null;
   activities: Array<CaseActivity & {
@@ -70,9 +71,24 @@ export async function createCase(
       organizationDefendant: validatedData.organizationDefendant,
     };
     
+    // Get court name from originalCourtId if provided
+    let courtName = validatedData.courtName;
+    if (!courtName && validatedData.originalCourtId) {
+      const court = await prisma.court.findUnique({
+        where: { id: validatedData.originalCourtId },
+        select: { courtName: true }
+      });
+      courtName = court?.courtName || 'Unknown Court';
+    }
+    
+    if (!courtName) {
+      throw new Error('Court name is required');
+    }
+
     const newCase = await prisma.case.create({
       data: {
         caseNumber: validatedData.caseNumber,
+        courtName,
         caseTypeId: validatedData.caseTypeId,
         filedDate: validatedData.filedDate,
         originalCourtId: validatedData.originalCourtId,
@@ -220,6 +236,10 @@ export async function getCasesPaginated({
       whereClause.originalCourtId = validatedFilters.courtId;
     }
     
+    if (validatedFilters.courtName) {
+      whereClause.courtName = { contains: validatedFilters.courtName, mode: 'insensitive' };
+    }
+    
     // Add cursor condition
     if (cursor) {
       whereClause.id = {
@@ -290,6 +310,7 @@ export async function searchCases(searchParams: any): Promise<PaginatedCases> {
     const whereClause: Prisma.CaseWhereInput = {
       OR: [
         { caseNumber: { contains: query, mode: 'insensitive' } },
+        { courtName: { contains: query, mode: 'insensitive' } },
         { 
           caseType: { 
             caseTypeName: { contains: query, mode: 'insensitive' } 

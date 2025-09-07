@@ -112,6 +112,7 @@ export type CaseReturnRow = z.infer<typeof CaseReturnRowSchema>;
 // Database entity validation schemas
 export const CreateCaseSchema = z.object({
   caseNumber: z.string().min(1).max(50),
+  courtName: z.string().min(1).max(255).optional(), // Optional since it can be derived from originalCourtId
   caseTypeId: z.string().uuid(),
   filedDate: z.date(),
   originalCourtId: z.string().uuid().optional(),
@@ -168,10 +169,6 @@ export const CreateCourtSchema = z.object({
   courtCode: z.string().min(1).max(50),
   courtType: z.enum(['SC', 'ELC', 'ELRC', 'KC', 'SCC', 'COA', 'MC', 'HC', 'TC']),
   isActive: z.boolean().default(true),
-  // New fields for original court handling from CSV
-  originalCode: z.string().max(50).optional(),
-  originalNumber: z.string().max(50).optional(),
-  originalYear: z.number().int().min(1960).max(new Date().getFullYear()).optional(),
 });
 
 export const CreateJudgeSchema = z.object({
@@ -229,6 +226,7 @@ export const AnalyticsFiltersSchema = z.object({
   endDate: z.date().optional(),
   caseTypeId: z.string().uuid().optional(),
   courtId: z.string().uuid().optional(),
+  courtName: z.string().optional(),
   status: z.enum(['ACTIVE', 'RESOLVED', 'PENDING', 'TRANSFERRED', 'DELETED']).optional(),
   judgeId: z.string().uuid().optional(),
 });

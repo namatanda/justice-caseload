@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq';
 import { redis, ImportJobData, AnalyticsJobData } from '../database/redis';
-import { processCsvImport } from './csv-processor';
+import { importService } from '../csv/import-service';
 import { refreshDashboardAnalytics, generateReport } from '../analytics/dashboard';
 import { logger } from '@/lib/logger';
 
@@ -28,7 +28,7 @@ export const csvImportWorker = new Worker(
       });
       
       // Process the CSV import
-      await processCsvImport(data);
+      await importService.processImport(data);
       
       // Mark job as complete
       await job.updateProgress({ 

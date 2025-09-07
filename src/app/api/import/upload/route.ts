@@ -3,12 +3,14 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { validateUploadedFile, saveUploadedFile, validateCsvStructure } from '@/lib/import/file-handler';
-import { initiateDailyImport, processCsvImport, getOrCreateSystemUser } from '@/lib/import/csv-processor';
+import { importService } from '@/lib/csv/import-service';
+import { batchService } from '@/lib/csv/batch-service';
 import { IMPORT_CONFIG } from '@/lib/import';
 import { checkRedisConnection } from '@/lib/database/redis';
 import type { ImportJobData } from '@/lib/database/redis';
 import { prisma } from '@/lib/database';
 import { logger } from '@/lib/logger';
+import { processCsvImport } from '../../../../../csv-processor';
 
 
 export async function POST(request: NextRequest) {
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create system user for imports
-    const userId = await getOrCreateSystemUser();
+    const userId = await batchService.getOrCreateSystemUser();
     logger.upload.debug('UserId obtained in upload route', { userId });
 
     // Check Redis connection for queue-based processing
@@ -90,7 +92,11 @@ export async function POST(request: NextRequest) {
       try {
         logger.upload.info('Initiating import with', { filePath: saveResult.filePath, filename: file.name, fileSize: file.size, userId });
         try {
-          const batchId = await initiateDailyImport(saveResult.filePath!);
+          const result = await importService.initiateImport(saveResult.filePath!, file.name, file.size, userId);
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to initiate import');
+          }
+          const batchId = result.batchId;
           
           logger.upload.info('Import initiated, returning batchId', { batchId });
           
@@ -218,7 +224,7 @@ export async function POST(request: NextRequest) {
       // Fallback to synchronous processing
       try {
         // Create import batch record synchronously
-        const userId = await getOrCreateSystemUser();
+        const userId = await batchService.getOrCreateSystemUser();
         const { prisma } = await import('@/lib/database');
         const checksum = await createHash('sha256')
           .update(await import('fs').then(fs => fs.readFileSync(saveResult.filePath!)))

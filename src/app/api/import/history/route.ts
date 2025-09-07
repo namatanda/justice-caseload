@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImportHistory } from '@/lib/import/csv-processor';
+import { importService } from '@/lib/csv/import-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get import history with filters
-    const history = await getImportHistory(limit);
+    const history = await importService.getImportHistory(limit);
 
     // Apply client-side filtering (in a real app, you'd do this in the database)
     let filteredHistory = history;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImportStatus } from '@/lib/import/csv-processor';
+import { importService } from '@/lib/csv/import-service';
 import { logger } from '@/lib/logger';
 
 export async function GET(
@@ -16,7 +16,7 @@ export async function GET(
       );
     }
 
-    const status = await getImportStatus(batchId);
+    const status = await importService.getImportStatus(batchId);
 
     return NextResponse.json({
       success: true,

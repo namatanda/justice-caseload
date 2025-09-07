@@ -8,17 +8,14 @@ datasource db {
 }
 
 model Court {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
-  courtName      String    @map("court_name") @db.VarChar(255)
-  courtCode      String    @unique @map("court_code") @db.VarChar(50)
-  courtType      CourtType @map("court_type")
-  isActive       Boolean   @default(true) @map("is_active")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
-  originalCode   String?   @map("original_code") @db.VarChar(50)
-  originalNumber String?   @map("original_number") @db.VarChar(50)
-  originalYear   Int?      @map("original_year")
-  cases          Case[]    @relation("OriginalCourt")
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  courtName String    @map("court_name") @db.VarChar(255)
+  courtCode String    @unique @map("court_code") @db.VarChar(50)
+  courtType CourtType @map("court_type")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+  cases     Case[]    @relation("OriginalCourt")
 
   @@index([courtType, isActive])
   @@index([courtName])
@@ -59,7 +56,8 @@ model CaseType {
 
 model Case {
   id                     String                @id @default(uuid())
-  caseNumber             String                @unique @map("case_number") @db.VarChar(50)
+  caseNumber             String                @map("case_number") @db.VarChar(50)
+  courtName              String                @map("court_name") @db.VarChar(255)
   caseTypeId             String                @map("case_type_id")
   filedDate              DateTime              @map("filed_date") @db.Date
   originalCourtId        String?               @map("original_court_id")
@@ -86,10 +84,12 @@ model Case {
   caseType               CaseType              @relation(fields: [caseTypeId], references: [id])
   originalCourt          Court?                @relation("OriginalCourt", fields: [originalCourtId], references: [id], onUpdate: NoAction)
 
+  @@unique([caseNumber, courtName], name: "case_number_court_unique")
   @@index([status, filedDate(sort: Desc)])
   @@index([caseTypeId, filedDate(sort: Desc)])
   @@index([filedDate(sort: Desc)])
   @@index([caseNumber])
+  @@index([courtName])
   @@index([status])
   @@index([caseAgeDays])
   @@index([lastActivityDate(sort: Desc)])
@@ -168,26 +168,27 @@ model CaseJudgeAssignment {
 }
 
 model DailyImportBatch {
-  id                      String         @id @default(uuid())
-  importDate              DateTime       @map("import_date") @db.Date
-  filename                String         @db.VarChar(255)
-  fileSize                Int            @map("file_size")
-  fileChecksum            String         @map("file_checksum") @db.VarChar(64)
-  totalRecords            Int            @map("total_records")
-  successfulRecords       Int            @map("successful_records")
-  failedRecords           Int            @map("failed_records")
-  errorLogs               Json           @map("error_logs")
+  id                      String              @id @default(uuid())
+  importDate              DateTime            @map("import_date") @db.Date
+  filename                String              @db.VarChar(255)
+  fileSize                Int                 @map("file_size")
+  fileChecksum            String              @map("file_checksum") @db.VarChar(64)
+  totalRecords            Int                 @map("total_records")
+  successfulRecords       Int                 @map("successful_records")
+  failedRecords           Int                 @map("failed_records")
+  errorLogs               Json                @map("error_logs")
   status                  ImportStatus
-  createdAt               DateTime       @default(now()) @map("created_at")
-  completedAt             DateTime?      @map("completed_at")
-  createdBy               String         @map("created_by")
-  estimatedCompletionTime DateTime?      @map("estimated_completion_time")
-  processingStartTime     DateTime?      @map("processing_start_time")
-  userConfig              Json           @default("{}") @map("user_config")
-  validationWarnings      Json           @default("[]") @map("validation_warnings")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  completedAt             DateTime?           @map("completed_at")
+  createdBy               String              @map("created_by")
+  estimatedCompletionTime DateTime?           @map("estimated_completion_time")
+  processingStartTime     DateTime?           @map("processing_start_time")
+  userConfig              Json                @default("{}") @map("user_config")
+  validationWarnings      Json                @default("[]") @map("validation_warnings")
+  emptyRowsSkipped        Int?                @default(0) @map("empty_rows_skipped")
   activities              CaseActivity[]
+  user                    User                @relation(fields: [createdBy], references: [id])
   errorDetails            ImportErrorDetail[]
-  user                    User           @relation(fields: [createdBy], references: [id])
 
   @@index([importDate(sort: Desc)])
   @@index([status])
@@ -213,15 +214,14 @@ model User {
 }
 
 model ImportErrorDetail {
-  id           String       @id @default(uuid())
+  id           String           @id @default(uuid())
   batchId      String
   rowNumber    Int
-  errorType    String       @db.VarChar(100)
-  errorMessage String       @db.Text
+  errorType    String           @db.VarChar(100)
+  errorMessage String
   severity     ErrorSeverity
-  createdAt    DateTime     @default(now())
-
-  batch DailyImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  batch        DailyImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@index([batchId])
   @@index([rowNumber])

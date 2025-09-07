@@ -185,3 +185,4 @@ docker exec -it justice-caseload-database-1 psql -h localhost -p 5432 -U fiend -
 docker exec -it justice-caseload-database-1 psql -h localhost -p 5432 -U fiend -d postgres -c "CREATE DATABASE caseload;"
 docker-compose restart database
 
+npx prisma db pull

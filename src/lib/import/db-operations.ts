@@ -26,9 +26,10 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
         });
       }
 
-      const judge = row.judge_name ? await tx.judge.upsert({
+      let judge = null;
+      if (row.judge_name) {
         // Find judge by full name or create
-        let judge = await tx.judge.findFirst({
+        judge = await tx.judge.findFirst({
           where: { fullName: row.judge_name }
         });
         
@@ -42,7 +43,7 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
             }
           });
         }
-      }) : null;
+      }
 
       // Create or update case
       const caseRecord = await tx.case.upsert({

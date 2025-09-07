@@ -1,16 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { parseCSVLine, deriveCourtTypeFromCaseId } from '../../src/lib/import/csv-processor';
+import { deriveCourtTypeFromCaseId } from '../../src/lib/import/csv-processor';
+import { csvParser } from '../../src/lib/csv/parser';
 
 describe('csv-processor utilities', () => {
   it('parseCSVLine should split simple comma line', () => {
     const line = 'a,b,c';
-    const parts = parseCSVLine(line);
+    const parts = csvParser.parseCSVLine(line);
     expect(parts).toEqual(['a','b','c']);
   });
 
   it('parseCSVLine should handle quoted commas and escaped quotes', () => {
     const line = '"Milimani Civil","6","Nov","2023","HCCC","123","13","Jun","2019","","","","0","Civil Suit","Kendagor, Caroline J","","","","","","","Mention","Directions Given","","7","Mar","2024","0","0","1","0","0","1","Yes","0","0","0",""';
-    const parts = parseCSVLine(line);
+    const parts = csvParser.parseCSVLine(line);
     expect(parts[0]).toBe('Milimani Civil');
     expect(parts[13]).toBe('Civil Suit');
     expect(parts[14]).toContain('Kendagor');
