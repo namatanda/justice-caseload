@@ -5598,6 +5598,7 @@ export namespace Prisma {
   export type CaseMinAggregateOutputType = {
     id: string | null
     caseNumber: string | null
+    courtName: string | null
     caseTypeId: string | null
     filedDate: Date | null
     originalCourtId: string | null
@@ -5623,6 +5624,7 @@ export namespace Prisma {
   export type CaseMaxAggregateOutputType = {
     id: string | null
     caseNumber: string | null
+    courtName: string | null
     caseTypeId: string | null
     filedDate: Date | null
     originalCourtId: string | null
@@ -5648,6 +5650,7 @@ export namespace Prisma {
   export type CaseCountAggregateOutputType = {
     id: number
     caseNumber: number
+    courtName: number
     caseTypeId: number
     filedDate: number
     originalCourtId: number
@@ -5700,6 +5703,7 @@ export namespace Prisma {
   export type CaseMinAggregateInputType = {
     id?: true
     caseNumber?: true
+    courtName?: true
     caseTypeId?: true
     filedDate?: true
     originalCourtId?: true
@@ -5725,6 +5729,7 @@ export namespace Prisma {
   export type CaseMaxAggregateInputType = {
     id?: true
     caseNumber?: true
+    courtName?: true
     caseTypeId?: true
     filedDate?: true
     originalCourtId?: true
@@ -5750,6 +5755,7 @@ export namespace Prisma {
   export type CaseCountAggregateInputType = {
     id?: true
     caseNumber?: true
+    courtName?: true
     caseTypeId?: true
     filedDate?: true
     originalCourtId?: true
@@ -5863,6 +5869,7 @@ export namespace Prisma {
   export type CaseGroupByOutputType = {
     id: string
     caseNumber: string
+    courtName: string
     caseTypeId: string
     filedDate: Date
     originalCourtId: string | null
@@ -5908,6 +5915,7 @@ export namespace Prisma {
   export type CaseSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     caseNumber?: boolean
+    courtName?: boolean
     caseTypeId?: boolean
     filedDate?: boolean
     originalCourtId?: boolean
@@ -5939,6 +5947,7 @@ export namespace Prisma {
   export type CaseSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     caseNumber?: boolean
+    courtName?: boolean
     caseTypeId?: boolean
     filedDate?: boolean
     originalCourtId?: boolean
@@ -5967,6 +5976,7 @@ export namespace Prisma {
   export type CaseSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     caseNumber?: boolean
+    courtName?: boolean
     caseTypeId?: boolean
     filedDate?: boolean
     originalCourtId?: boolean
@@ -5995,6 +6005,7 @@ export namespace Prisma {
   export type CaseSelectScalar = {
     id?: boolean
     caseNumber?: boolean
+    courtName?: boolean
     caseTypeId?: boolean
     filedDate?: boolean
     originalCourtId?: boolean
@@ -6018,7 +6029,7 @@ export namespace Prisma {
     organizationDefendant?: boolean
   }
 
-  export type CaseOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "caseNumber" | "caseTypeId" | "filedDate" | "originalCourtId" | "originalCaseNumber" | "originalYear" | "parties" | "status" | "caseAgeDays" | "lastActivityDate" | "totalActivities" | "hasLegalRepresentation" | "createdAt" | "updatedAt" | "caseidType" | "caseidNo" | "maleApplicant" | "femaleApplicant" | "organizationApplicant" | "maleDefendant" | "femaleDefendant" | "organizationDefendant", ExtArgs["result"]["case"]>
+  export type CaseOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "caseNumber" | "courtName" | "caseTypeId" | "filedDate" | "originalCourtId" | "originalCaseNumber" | "originalYear" | "parties" | "status" | "caseAgeDays" | "lastActivityDate" | "totalActivities" | "hasLegalRepresentation" | "createdAt" | "updatedAt" | "caseidType" | "caseidNo" | "maleApplicant" | "femaleApplicant" | "organizationApplicant" | "maleDefendant" | "femaleDefendant" | "organizationDefendant", ExtArgs["result"]["case"]>
   export type CaseInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     caseType?: boolean | CaseTypeDefaultArgs<ExtArgs>
     originalCourt?: boolean | Case$originalCourtArgs<ExtArgs>
@@ -6046,6 +6057,7 @@ export namespace Prisma {
     scalars: $Extensions.GetPayloadResult<{
       id: string
       caseNumber: string
+      courtName: string
       caseTypeId: string
       filedDate: Date
       originalCourtId: string | null
@@ -6496,6 +6508,7 @@ export namespace Prisma {
   interface CaseFieldRefs {
     readonly id: FieldRef<"Case", 'String'>
     readonly caseNumber: FieldRef<"Case", 'String'>
+    readonly courtName: FieldRef<"Case", 'String'>
     readonly caseTypeId: FieldRef<"Case", 'String'>
     readonly filedDate: FieldRef<"Case", 'DateTime'>
     readonly originalCourtId: FieldRef<"Case", 'String'>
@@ -16604,6 +16617,7 @@ export namespace Prisma {
   export const CaseScalarFieldEnum: {
     id: 'id',
     caseNumber: 'caseNumber',
+    courtName: 'courtName',
     caseTypeId: 'caseTypeId',
     filedDate: 'filedDate',
     originalCourtId: 'originalCourtId',
@@ -17088,6 +17102,7 @@ export namespace Prisma {
     NOT?: CaseWhereInput | CaseWhereInput[]
     id?: StringFilter<"Case"> | string
     caseNumber?: StringFilter<"Case"> | string
+    courtName?: StringFilter<"Case"> | string
     caseTypeId?: StringFilter<"Case"> | string
     filedDate?: DateTimeFilter<"Case"> | Date | string
     originalCourtId?: StringNullableFilter<"Case"> | string | null
@@ -17118,6 +17133,7 @@ export namespace Prisma {
   export type CaseOrderByWithRelationInput = {
     id?: SortOrder
     caseNumber?: SortOrder
+    courtName?: SortOrder
     caseTypeId?: SortOrder
     filedDate?: SortOrder
     originalCourtId?: SortOrderInput | SortOrder
@@ -17147,10 +17163,12 @@ export namespace Prisma {
 
   export type CaseWhereUniqueInput = Prisma.AtLeast<{
     id?: string
-    caseNumber?: string
+    case_number_court_unique?: CaseCase_number_court_uniqueCompoundUniqueInput
     AND?: CaseWhereInput | CaseWhereInput[]
     OR?: CaseWhereInput[]
     NOT?: CaseWhereInput | CaseWhereInput[]
+    caseNumber?: StringFilter<"Case"> | string
+    courtName?: StringFilter<"Case"> | string
     caseTypeId?: StringFilter<"Case"> | string
     filedDate?: DateTimeFilter<"Case"> | Date | string
     originalCourtId?: StringNullableFilter<"Case"> | string | null
@@ -17176,11 +17194,12 @@ export namespace Prisma {
     originalCourt?: XOR<CourtNullableScalarRelationFilter, CourtWhereInput> | null
     activities?: CaseActivityListRelationFilter
     judgeAssignments?: CaseJudgeAssignmentListRelationFilter
-  }, "id" | "caseNumber">
+  }, "id" | "case_number_court_unique">
 
   export type CaseOrderByWithAggregationInput = {
     id?: SortOrder
     caseNumber?: SortOrder
+    courtName?: SortOrder
     caseTypeId?: SortOrder
     filedDate?: SortOrder
     originalCourtId?: SortOrderInput | SortOrder
@@ -17215,6 +17234,7 @@ export namespace Prisma {
     NOT?: CaseScalarWhereWithAggregatesInput | CaseScalarWhereWithAggregatesInput[]
     id?: StringWithAggregatesFilter<"Case"> | string
     caseNumber?: StringWithAggregatesFilter<"Case"> | string
+    courtName?: StringWithAggregatesFilter<"Case"> | string
     caseTypeId?: StringWithAggregatesFilter<"Case"> | string
     filedDate?: DateTimeWithAggregatesFilter<"Case"> | Date | string
     originalCourtId?: StringNullableWithAggregatesFilter<"Case"> | string | null
@@ -18241,6 +18261,7 @@ export namespace Prisma {
   export type CaseCreateInput = {
     id?: string
     caseNumber: string
+    courtName: string
     filedDate: Date | string
     originalCaseNumber?: string | null
     originalYear?: number | null
@@ -18269,6 +18290,7 @@ export namespace Prisma {
   export type CaseUncheckedCreateInput = {
     id?: string
     caseNumber: string
+    courtName: string
     caseTypeId: string
     filedDate: Date | string
     originalCourtId?: string | null
@@ -18297,6 +18319,7 @@ export namespace Prisma {
   export type CaseUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
     originalYear?: NullableIntFieldUpdateOperationsInput | number | null
@@ -18325,6 +18348,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     caseTypeId?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCourtId?: NullableStringFieldUpdateOperationsInput | string | null
@@ -18353,6 +18377,7 @@ export namespace Prisma {
   export type CaseCreateManyInput = {
     id?: string
     caseNumber: string
+    courtName: string
     caseTypeId: string
     filedDate: Date | string
     originalCourtId?: string | null
@@ -18379,6 +18404,7 @@ export namespace Prisma {
   export type CaseUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
     originalYear?: NullableIntFieldUpdateOperationsInput | number | null
@@ -18403,6 +18429,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     caseTypeId?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCourtId?: NullableStringFieldUpdateOperationsInput | string | null
@@ -19603,9 +19630,15 @@ export namespace Prisma {
     isNot?: CourtWhereInput | null
   }
 
+  export type CaseCase_number_court_uniqueCompoundUniqueInput = {
+    caseNumber: string
+    courtName: string
+  }
+
   export type CaseCountOrderByAggregateInput = {
     id?: SortOrder
     caseNumber?: SortOrder
+    courtName?: SortOrder
     caseTypeId?: SortOrder
     filedDate?: SortOrder
     originalCourtId?: SortOrder
@@ -19644,6 +19677,7 @@ export namespace Prisma {
   export type CaseMaxOrderByAggregateInput = {
     id?: SortOrder
     caseNumber?: SortOrder
+    courtName?: SortOrder
     caseTypeId?: SortOrder
     filedDate?: SortOrder
     originalCourtId?: SortOrder
@@ -19669,6 +19703,7 @@ export namespace Prisma {
   export type CaseMinOrderByAggregateInput = {
     id?: SortOrder
     caseNumber?: SortOrder
+    courtName?: SortOrder
     caseTypeId?: SortOrder
     filedDate?: SortOrder
     originalCourtId?: SortOrder
@@ -21172,6 +21207,7 @@ export namespace Prisma {
   export type CaseCreateWithoutOriginalCourtInput = {
     id?: string
     caseNumber: string
+    courtName: string
     filedDate: Date | string
     originalCaseNumber?: string | null
     originalYear?: number | null
@@ -21199,6 +21235,7 @@ export namespace Prisma {
   export type CaseUncheckedCreateWithoutOriginalCourtInput = {
     id?: string
     caseNumber: string
+    courtName: string
     caseTypeId: string
     filedDate: Date | string
     originalCaseNumber?: string | null
@@ -21254,6 +21291,7 @@ export namespace Prisma {
     NOT?: CaseScalarWhereInput | CaseScalarWhereInput[]
     id?: StringFilter<"Case"> | string
     caseNumber?: StringFilter<"Case"> | string
+    courtName?: StringFilter<"Case"> | string
     caseTypeId?: StringFilter<"Case"> | string
     filedDate?: DateTimeFilter<"Case"> | Date | string
     originalCourtId?: StringNullableFilter<"Case"> | string | null
@@ -21440,6 +21478,7 @@ export namespace Prisma {
   export type CaseCreateWithoutCaseTypeInput = {
     id?: string
     caseNumber: string
+    courtName: string
     filedDate: Date | string
     originalCaseNumber?: string | null
     originalYear?: number | null
@@ -21467,6 +21506,7 @@ export namespace Prisma {
   export type CaseUncheckedCreateWithoutCaseTypeInput = {
     id?: string
     caseNumber: string
+    courtName: string
     filedDate: Date | string
     originalCourtId?: string | null
     originalCaseNumber?: string | null
@@ -21757,6 +21797,7 @@ export namespace Prisma {
   export type CaseCreateWithoutActivitiesInput = {
     id?: string
     caseNumber: string
+    courtName: string
     filedDate: Date | string
     originalCaseNumber?: string | null
     originalYear?: number | null
@@ -21784,6 +21825,7 @@ export namespace Prisma {
   export type CaseUncheckedCreateWithoutActivitiesInput = {
     id?: string
     caseNumber: string
+    courtName: string
     caseTypeId: string
     filedDate: Date | string
     originalCourtId?: string | null
@@ -21903,6 +21945,7 @@ export namespace Prisma {
   export type CaseUpdateWithoutActivitiesInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
     originalYear?: NullableIntFieldUpdateOperationsInput | number | null
@@ -21930,6 +21973,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateWithoutActivitiesInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     caseTypeId?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCourtId?: NullableStringFieldUpdateOperationsInput | string | null
@@ -22045,6 +22089,7 @@ export namespace Prisma {
   export type CaseCreateWithoutJudgeAssignmentsInput = {
     id?: string
     caseNumber: string
+    courtName: string
     filedDate: Date | string
     originalCaseNumber?: string | null
     originalYear?: number | null
@@ -22072,6 +22117,7 @@ export namespace Prisma {
   export type CaseUncheckedCreateWithoutJudgeAssignmentsInput = {
     id?: string
     caseNumber: string
+    courtName: string
     caseTypeId: string
     filedDate: Date | string
     originalCourtId?: string | null
@@ -22142,6 +22188,7 @@ export namespace Prisma {
   export type CaseUpdateWithoutJudgeAssignmentsInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
     originalYear?: NullableIntFieldUpdateOperationsInput | number | null
@@ -22169,6 +22216,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateWithoutJudgeAssignmentsInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     caseTypeId?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCourtId?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23071,6 +23119,7 @@ export namespace Prisma {
   export type CaseCreateManyOriginalCourtInput = {
     id?: string
     caseNumber: string
+    courtName: string
     caseTypeId: string
     filedDate: Date | string
     originalCaseNumber?: string | null
@@ -23096,6 +23145,7 @@ export namespace Prisma {
   export type CaseUpdateWithoutOriginalCourtInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
     originalYear?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23123,6 +23173,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateWithoutOriginalCourtInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     caseTypeId?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23150,6 +23201,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateManyWithoutOriginalCourtInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     caseTypeId?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23311,6 +23363,7 @@ export namespace Prisma {
   export type CaseCreateManyCaseTypeInput = {
     id?: string
     caseNumber: string
+    courtName: string
     filedDate: Date | string
     originalCourtId?: string | null
     originalCaseNumber?: string | null
@@ -23336,6 +23389,7 @@ export namespace Prisma {
   export type CaseUpdateWithoutCaseTypeInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
     originalYear?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23363,6 +23417,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateWithoutCaseTypeInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCourtId?: NullableStringFieldUpdateOperationsInput | string | null
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23390,6 +23445,7 @@ export namespace Prisma {
   export type CaseUncheckedUpdateManyWithoutCaseTypeInput = {
     id?: StringFieldUpdateOperationsInput | string
     caseNumber?: StringFieldUpdateOperationsInput | string
+    courtName?: StringFieldUpdateOperationsInput | string
     filedDate?: DateTimeFieldUpdateOperationsInput | Date | string
     originalCourtId?: NullableStringFieldUpdateOperationsInput | string | null
     originalCaseNumber?: NullableStringFieldUpdateOperationsInput | string | null

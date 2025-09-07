@@ -152,6 +152,7 @@ exports.Prisma.CaseTypeScalarFieldEnum = {
 exports.Prisma.CaseScalarFieldEnum = {
   id: 'id',
   caseNumber: 'caseNumber',
+  courtName: 'courtName',
   caseTypeId: 'caseTypeId',
   filedDate: 'filedDate',
   originalCourtId: 'originalCourtId',

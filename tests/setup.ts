@@ -148,6 +148,7 @@ export const createTestCase = async (caseNumber?: string) => {
   return await db.case.create({
     data: {
       caseNumber: caseNumber || `TEST-${Date.now()}`,
+      courtName: 'Test Court',
       caseTypeId: caseType.id,
       filedDate: new Date(),
       parties: {

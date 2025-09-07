@@ -230,7 +230,7 @@ export interface CaseService {
   /**
    * Find existing case by case number
    */
-  findExistingCase(caseNumber: string, tx: Transaction): Promise<Case | null>;
+  findExistingCase(caseNumber: string, courtName: string, tx: Transaction): Promise<Case | null>;
 }
 
 // ============================================================================

@@ -1,4 +1,4 @@
-import { CourtType } from '@prisma/client';
+import { CourtType, PrismaClient, Prisma } from '@prisma/client';
 import logger from '@/lib/logger';
 import { PrismaTransaction } from '../database';
 import { validateExtractedCourt, validateExtractedJudge, validateExtractedCaseType } from '../validation/schemas';
@@ -13,7 +13,7 @@ interface CourtExtractionResult {
 export async function extractAndNormalizeCourt(
   courtName: string | undefined,
   courtCode: string | undefined,
-  tx: PrismaTransaction,
+  tx: Prisma.TransactionClient | PrismaClient,
   derivedCourtType?: CourtType
 ): Promise<CourtExtractionResult | null> {
   
@@ -144,7 +144,7 @@ interface JudgeExtractionResult {
 
 export async function extractAndNormalizeJudge(
   judgeFullName: string,
-  tx: PrismaTransaction
+  tx: Prisma.TransactionClient | PrismaClient,
 ): Promise<JudgeExtractionResult> {
   
   // Validate judge name
@@ -226,7 +226,7 @@ export async function extractAndNormalizeJudge(
 // Case type extraction and normalization
 export async function extractAndNormalizeCaseType(
   caseTypeName: string,
-  tx: PrismaTransaction
+  tx: Prisma.TransactionClient | PrismaClient,
 ): Promise<string> {
   
   // Validate case type name

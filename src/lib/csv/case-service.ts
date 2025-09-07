@@ -77,7 +77,7 @@ class CaseServiceImpl implements CaseService {
     }
 
     // Check if case exists
-    const existingCase = await this.findExistingCase(caseNumber, tx);
+    const existingCase = await this.findExistingCase(caseNumber, row.court, tx);
 
     if (existingCase) {
       return await this.updateExistingCase(existingCase, row, filedDate, tx);
@@ -138,8 +138,8 @@ class CaseServiceImpl implements CaseService {
     const activityData = {
       caseId,
       activityDate,
-      activityType: row.comingfor,
-      outcome: row.outcome,
+      activityType: row.comingfor || 'Unknown',
+      outcome: row.outcome || 'Pending',
       reasonForAdjournment: row.reason_adj,
       nextHearingDate,
       primaryJudgeId: primaryJudge.judgeId,
@@ -198,11 +198,17 @@ class CaseServiceImpl implements CaseService {
   }
 
   /**
-   * Find existing case by case number
+   * Find existing case by case number and court
    */
-  async findExistingCase(caseNumber: string, tx: Transaction): Promise<Case | null> {
-    return await tx.case.findUnique({
-      where: { caseNumber },
+  async findExistingCase(caseNumber: string, courtName: string, tx: Transaction): Promise<Case | null> {
+    console.log('Debug: findExistingCase called with caseNumber:', caseNumber, 'courtName:', courtName);
+    console.log('Debug: Where object for findUnique:', { caseNumber, courtName });
+    
+    return await tx.case.findFirst({
+      where: {
+        caseNumber,
+        courtName
+      },
     });
   }
 
@@ -289,6 +295,7 @@ class CaseServiceImpl implements CaseService {
     // Prepare case data
     const caseData = {
       caseNumber,
+      courtName: row.court,
       caseTypeId,
       filedDate,
       originalCourtId: originalCourtResult?.courtId || null,
@@ -319,7 +326,7 @@ class CaseServiceImpl implements CaseService {
       // CSV-specific fields
       caseidType: row.caseid_type || '',
       caseidNo: row.caseid_no || '',
-      status: 'ACTIVE',
+      status: 'ACTIVE' as const,
       caseAgeDays: Math.floor((Date.now() - filedDate.getTime()) / (1000 * 60 * 60 * 24)),
       lastActivityDate: new Date(),
       totalActivities: 1,

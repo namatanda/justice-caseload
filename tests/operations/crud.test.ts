@@ -92,6 +92,7 @@ describe('CRUD Operations Tests', () => {
         await testDb().case.create({
           data: {
             caseNumber: `PAGINATED-${i + 1}`,
+            courtName: 'Test Court',
             caseTypeId: caseType.id,
             filedDate: new Date(),
             parties: {
@@ -228,6 +229,7 @@ describe('CRUD Operations Tests', () => {
         await testDb().case.create({
           data: {
             caseNumber: `STATS-${status}`,
+            courtName: 'Test Court',
             caseTypeId: caseType.id,
             filedDate: new Date(),
             parties: {

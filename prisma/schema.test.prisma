@@ -73,7 +73,8 @@ model CaseType {
 
 model Case {
   id                     String     @id @default(uuid())
-  caseNumber             String     @unique @map("case_number")
+  caseNumber             String     @map("case_number")
+  courtName              String     @map("court_name")
   caseTypeId             String     @map("case_type_id")
   filedDate              DateTime   @map("filed_date")
   originalCourtId        String?    @map("original_court_id")
@@ -98,6 +99,7 @@ model Case {
   femaleDefendant       Int @default(0) @map("female_defendant")
   organizationDefendant Int @default(0) @map("organization_defendant")
 
+  @@unique([caseNumber, courtName], name: "case_number_court_unique")
   caseType         CaseType              @relation(fields: [caseTypeId], references: [id])
   originalCourt    Court?                @relation("OriginalCourt", fields: [originalCourtId], references: [id])
   activities       CaseActivity[]

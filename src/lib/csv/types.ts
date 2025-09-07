@@ -2,7 +2,7 @@
  * Core types and interfaces for the CSV processing modules
  */
 
-import { CourtType } from '@prisma/client';
+import { CourtType, PrismaClient, Prisma } from '@prisma/client';
 
 // Temporary type definition - will use actual CaseReturnRow from validation schemas in implementation
 export interface CaseReturnRow {
@@ -170,11 +170,7 @@ export type BatchStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 // Transaction Types (for database operations)
 // ============================================================================
 
-export interface Transaction {
-  // This will be the actual Prisma transaction type
-  // For now, we'll use any to avoid circular dependencies
-  [key: string]: any;
-}
+export type Transaction = Prisma.TransactionClient;
 
 export interface Job {
   id: string | number;
@@ -197,9 +193,9 @@ export interface ImportBatch {
   failedRecords: number;
   status: BatchStatus;
   errorLogs: any[];
-  completedAt?: Date;
+  completedAt?: Date | null;
   createdBy: string;
-  emptyRowsSkipped?: number;
+  emptyRowsSkipped?: number | null;
 }
 
 export interface Case {

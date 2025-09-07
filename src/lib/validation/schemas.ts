@@ -112,7 +112,7 @@ export type CaseReturnRow = z.infer<typeof CaseReturnRowSchema>;
 // Database entity validation schemas
 export const CreateCaseSchema = z.object({
   caseNumber: z.string().min(1).max(50),
-  courtName: z.string().min(1).max(255).optional(), // Optional since it can be derived from originalCourtId
+  courtName: z.string().min(1).max(255), // Required field
   caseTypeId: z.string().uuid(),
   filedDate: z.date(),
   originalCourtId: z.string().uuid().optional(),
@@ -428,8 +428,8 @@ export function validateExtractedJudge(judgeName: string): {
   }
 
   // More permissive validation to allow common judge name characters including Unicode letters
-  // Allow letters, spaces, commas, periods, hyphens, apostrophes, and parentheses
-  if (!/^[\p{L}\s,.'\-()]+$/u.test(judgeName)) {
+  // Allow letters, spaces, commas, periods, hyphens, apostrophes
+  if (!/^[A-Za-z\s,.'-]+$/.test(judgeName)) {
     issues.push('Judge name contains invalid characters');
   }
 

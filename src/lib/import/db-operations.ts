@@ -46,9 +46,21 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
       }
 
       // Create or update case
+      console.log('Debug: Row court value:', row.court, 'Type:', typeof row.court);
+      console.log('Debug: Full row keys:', Object.keys(row));
+      console.log('Debug: Where object:', {
+        case_number_court_unique: {
+          caseNumber: `${row.caseid_type}-${row.caseid_no}`,
+          courtName: row.court
+        }
+      });
+      
       const caseRecord = await tx.case.upsert({
-        where: { 
-          caseNumber: `${row.caseid_type}-${row.caseid_no}`
+        where: {
+          case_number_court_unique: {
+            caseNumber: `${row.caseid_type}-${row.caseid_no}`,
+            courtName: row.court
+          }
         },
         update: {
           status: row.outcome as any,
@@ -60,6 +72,7 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
         },
         create: {
           caseNumber: `${row.caseid_type}-${row.caseid_no}`,
+          courtName: row.court,
           parties: {},
           status: row.outcome as any,
           originalCourtId: court.id,

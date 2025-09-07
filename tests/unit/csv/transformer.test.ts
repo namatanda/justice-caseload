@@ -70,7 +70,7 @@ describe('CsvDataTransformer', () => {
       caseid_no: '123',
       case_type: 'CIVIL',
       filed_dd: 15,
-      filed_mon: 6,
+      filed_mon: 'Jun',
       filed_yyyy: 2023,
       male_applicant: 2,
       female_applicant: 1,
@@ -83,7 +83,7 @@ describe('CsvDataTransformer', () => {
       original_year: 2022,
       // Required fields for validation
       date_dd: 20,
-      date_mon: 6,
+      date_mon: 'Jun',
       date_yyyy: 2023,
       judge_1: 'Judge Smith',
       comingfor: 'Hearing',
@@ -232,7 +232,7 @@ describe('CsvDataTransformer', () => {
       outcome: 'Adjourned',
       reason_adj: 'Missing witness',
       next_dd: 25,
-      next_mon: 6,
+      next_mon: 'Jun',
       next_yyyy: 2023,
       legalrep: 'Yes',
       applicant_witness: 2,
@@ -244,7 +244,7 @@ describe('CsvDataTransformer', () => {
       caseid_no: '123',
       case_type: 'CIVIL',
       filed_dd: 15,
-      filed_mon: 6,
+      filed_mon: 'Jun',
       filed_yyyy: 2023,
       court: 'Supreme Court'
     };

@@ -15,7 +15,7 @@ model Court {
   isActive  Boolean   @default(true) @map("is_active")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
-  cases     Case[]    @relation("OriginalCourt")
+  originalCases        Case[]                @relation("OriginalCases")
 
   @@index([courtType, isActive])
   @@index([courtName])
@@ -58,9 +58,9 @@ model Case {
   id                     String                @id @default(uuid())
   caseNumber             String                @map("case_number") @db.VarChar(50)
   courtName              String                @map("court_name") @db.VarChar(255)
+  originalCourtId        String?               @map("original_court_id") @db.VarChar(36)
   caseTypeId             String                @map("case_type_id")
   filedDate              DateTime              @map("filed_date") @db.Date
-  originalCourtId        String?               @map("original_court_id")
   originalCaseNumber     String?               @map("original_case_number") @db.VarChar(50)
   originalYear           Int?                  @map("original_year")
   parties                Json
@@ -82,7 +82,7 @@ model Case {
   activities             CaseActivity[]
   judgeAssignments       CaseJudgeAssignment[]
   caseType               CaseType              @relation(fields: [caseTypeId], references: [id])
-  originalCourt          Court?                @relation("OriginalCourt", fields: [originalCourtId], references: [id], onUpdate: NoAction)
+  originalCourt          Court?                @relation("OriginalCases", fields: [originalCourtId], references: [id])
 
   @@unique([caseNumber, courtName], name: "case_number_court_unique")
   @@index([status, filedDate(sort: Desc)])

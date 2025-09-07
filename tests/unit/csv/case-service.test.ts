@@ -410,7 +410,7 @@ describe('CaseService', () => {
       mockTx.case.findUnique.mockResolvedValue(expectedCase);
 
       // Act
-      const result = await caseService.findExistingCase('CRL-12345', mockTx);
+      const result = await caseService.findExistingCase('CRL-12345', 'Test Court', mockTx);
 
       // Assert
       expect(result).toEqual(expectedCase);
@@ -424,7 +424,7 @@ describe('CaseService', () => {
       mockTx.case.findUnique.mockResolvedValue(null);
 
       // Act
-      const result = await caseService.findExistingCase('NON-EXISTENT', mockTx);
+      const result = await caseService.findExistingCase('NON-EXISTENT', 'Test Court', mockTx);
 
       // Assert
       expect(result).toBeNull();

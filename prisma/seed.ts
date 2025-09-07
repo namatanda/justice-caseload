@@ -7,14 +7,14 @@ const prisma = new PrismaClient();
 // Sample data for seeding
 const sampleCourts = [
   { name: 'Supreme Court of Kenya', code: 'SCK', type: 'SC' as const },
-  { name: 'High Court of Kenya', code: 'HCK', type: 'HC' as const },
-  { name: 'Milimani Commercial Court', code: 'MCC', type: 'MC' as const },
-  { name: 'Kibera Law Courts', code: 'KLC', type: 'MC' as const },
-  { name: 'Employment and Labour Relations Court', code: 'ELRC', type: 'ELRC' as const },
-  { name: 'Environment and Land Court', code: 'ELC', type: 'ELC' as const },
-  { name: 'Court of Appeal', code: 'COA', type: 'COA' as const },
-  { name: 'Kadhis Court', code: 'KDC', type: 'KC' as const },
-  { name: 'Small Claims Court', code: 'SCC', type: 'SCC' as const },
+  { name: 'Embu High Court Kenya', code: 'HCK', type: 'HC' as const },
+  { name: 'Milimani Magistrates\' Criminal Court', code: 'MCC', type: 'MC' as const },
+  { name: 'Kibera high Court', code: 'KHC', type: 'MC' as const },
+  { name: 'Milimani Employment and Labour Relations Court', code: 'MELRC', type: 'ELRC' as const },
+  { name: 'Milimani Environment and Land Court', code: 'ELC', type: 'ELC' as const },
+  { name: 'Nakuru Court of Appeal', code: 'NCOA', type: 'COA' as const },
+  { name: 'Moyale Kadhis Court', code: 'MKDC', type: 'KC' as const },
+  { name: 'Nanyuki Small Claims Court', code: 'NSCC', type: 'SCC' as const },
 ];
 
 const sampleJudges = [
@@ -165,8 +165,10 @@ async function seedDatabase() {
         successfulRecords: 0,
         failedRecords: 0,
         errorLogs: [],
-        status: 'COMPLETED',
+        status: 'COMPLETED' as const,
         createdBy: createdUsers[0].id, // Admin user
+        userConfig: {},
+        validationWarnings: [],
       },
     });
     
@@ -218,6 +220,7 @@ async function seedDatabase() {
       const createdCase = await prisma.case.create({
         data: {
           caseNumber,
+          courtName: court.courtName,
           caseTypeId: caseType.id,
           filedDate,
           originalCourtId: Math.random() > 0.7 ? court.id : undefined, // 30% have original court
