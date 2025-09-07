@@ -1,4 +1,5 @@
 "use client";
+import logger from '@/lib/logger';
 
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -24,7 +25,7 @@ export function WorkerInitializer() {
         const checkResult = await checkResponse.json();
         
         if (!checkResult.redisConnected) {
-          console.warn('Redis is not connected. Background processing will be limited.');
+          logger.import.warn('Redis is not connected. Background processing will be limited');
           setStatus('error');
           setMessage('Redis connection unavailable. File uploads will use synchronous processing.');
           return;
@@ -41,15 +42,15 @@ export function WorkerInitializer() {
         const result = await response.json();
         
         if (result.success) {
-          console.log('Queue workers initialized successfully');
+          logger.import.info('Queue workers initialized successfully');
           setStatus('success');
         } else {
-          console.error('Failed to initialize queue workers:', result.error);
+          logger.import.error('Failed to initialize queue workers', { error: result.error });
           setStatus('error');
           setMessage(result.message || 'Failed to initialize background processing.');
         }
       } catch (error) {
-        console.error('Worker initialization error:', error);
+        logger.import.error('Worker initialization error', error);
         setStatus('error');
         setMessage('Could not connect to worker initialization service.');
       }

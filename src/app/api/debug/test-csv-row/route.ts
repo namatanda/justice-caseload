@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { CaseReturnRowSchema } from '@/lib/validation/schemas';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
   try {
@@ -87,7 +88,7 @@ export async function GET() {
       other_details: ""
     };
 
-    console.log('Testing CSV row validation...');
+    logger.info('general', 'Testing CSV row validation...');
 
     // Test both rows
     const testRows = [
@@ -98,19 +99,19 @@ export async function GET() {
     const results = [];
 
     for (const testRow of testRows) {
-      console.log(`Testing ${testRow.name}:`, JSON.stringify(testRow.data, null, 2));
+      logger.api.info(`Testing ${testRow.name}`, testRow.data);
 
       const result = CaseReturnRowSchema.safeParse(testRow.data);
 
       if (result.success) {
-        console.log(`✅ ${testRow.name} validation successful`);
+        logger.info('general', `✅ ${testRow.name} validation successful`);
         results.push({
           name: testRow.name,
           success: true,
           validatedData: result.data
         });
       } else {
-        console.log(`❌ ${testRow.name} validation failed:`, result.error.errors);
+        logger.info('general', `❌ ${testRow.name} validation failed:`, result.error.errors);
         results.push({
           name: testRow.name,
           success: false,
@@ -126,7 +127,7 @@ export async function GET() {
       results
     });
   } catch (error) {
-    console.error('Test error:', error);
+    logger.error('general', 'Test error:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

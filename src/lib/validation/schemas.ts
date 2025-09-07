@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { logger } from '@/lib/logger';
 
 // Helper function to safely convert string to number, handling empty strings
 const safeNumber = (val: any) => {
@@ -11,7 +12,7 @@ const safeNumber = (val: any) => {
     .replace(/\s{2,}/g, ' ') // Replace multiple consecutive spaces with single space
     .trim(); // Trim again
     
-  if (stringVal === '' || stringVal === 'null' || stringVal === 'NULL' || stringVal === 'undefined' || stringVal === 'N/A' || stringVal === 'n/a') {
+  if (stringVal === '' || stringVal === '0' || stringVal === 'null' || stringVal === 'NULL' || stringVal === 'undefined' || stringVal === 'N/A' || stringVal === 'n/a') {
     return undefined;
   }
   
@@ -273,7 +274,7 @@ export const FileUploadSchema = z.object({
 
 // Enhanced helper function to validate and transform dates
 export function createDateFromParts(day: number | string, month: string | number, year: number | string): Date {
-  console.log(`🗓️ DATE CREATION: Input values:`, {
+  logger.import.debug('Creating date from parts', {
     day: { value: day, type: typeof day },
     month: { value: month, type: typeof month },
     year: { value: year, type: typeof year }
@@ -281,7 +282,7 @@ export function createDateFromParts(day: number | string, month: string | number
 
   // Check for null/undefined values first
   if (day === null || day === undefined || month === null || month === undefined || year === null || year === undefined) {
-    console.error(`❌ DATE CREATION: Missing date components:`, { day, month, year });
+    logger.import.error('Missing date components', { day, month, year });
     throw new Error(`Missing date components: day=${day}, month=${month}, year=${year}. All components are required.`);
   }
 
@@ -289,14 +290,14 @@ export function createDateFromParts(day: number | string, month: string | number
   const dayNum = typeof day === 'string' ? parseInt(String(day).trim(), 10) : Number(day);
   const yearNum = typeof year === 'string' ? parseInt(String(year).trim(), 10) : Number(year);
 
-  console.log(`🔢 DATE CREATION: Converted numbers:`, {
+  logger.import.debug('Converting date parts to numbers', {
     dayNum: { value: dayNum, isNaN: isNaN(dayNum) },
     yearNum: { value: yearNum, isNaN: isNaN(yearNum) }
   });
 
   // Validate parsed numbers
   if (isNaN(dayNum) || isNaN(yearNum)) {
-    console.error(`❌ DATE CREATION: Invalid numeric conversion:`, { day, dayNum, year, yearNum });
+    logger.import.error('Invalid numeric conversion for date', { day, dayNum, year, yearNum });
     throw new Error(`Invalid date values: day=${day}, month=${month}, year=${year}. Day and year must be valid numbers.`);
   }
 
@@ -338,7 +339,7 @@ export function createDateFromParts(day: number | string, month: string | number
 
   const date = new Date(yearNum, monthIndex, dayNum);
 
-  console.log(`📅 DATE CREATION: Created date object:`, {
+  logger.import.debug('Created date object', {
     input: { dayNum, monthIndex, yearNum },
     created: date,
     validation: {
@@ -351,14 +352,14 @@ export function createDateFromParts(day: number | string, month: string | number
 
   // Validate the date is real (handles cases like Feb 30, Apr 31, etc.)
   if (date.getDate() !== dayNum || date.getMonth() !== monthIndex || date.getFullYear() !== yearNum) {
-    console.error(`❌ DATE CREATION: Invalid date combination:`, {
+    logger.import.error('Invalid date combination', {
       input: { dayNum, monthIndex, yearNum },
       created: { day: date.getDate(), month: date.getMonth(), year: date.getFullYear() }
     });
     throw new Error(`Invalid date combination: ${dayNum}/${typeof month === 'string' ? month : monthIndex + 1}/${yearNum} (this date does not exist)`);
   }
 
-  console.log(`✅ DATE CREATION: Valid date created:`, date);
+  logger.import.debug('Valid date created', { date });
   return date;
 }
 
@@ -382,7 +383,7 @@ export function createOptionalDateFromParts(
     );
   } catch (error) {
     // For optional dates, we can be more lenient and return undefined on validation errors
-    console.warn(`Invalid optional date components: ${day}/${month}/${year} - ${error instanceof Error ? error.message : 'Unknown error'}`);
+    logger.import.warn(`Invalid optional date components: ${day}/${month}/${year}`, { error: error instanceof Error ? error.message : 'Unknown error' });
     return undefined;
   }
 }

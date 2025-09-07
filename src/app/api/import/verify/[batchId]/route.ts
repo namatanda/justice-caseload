@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 import { prisma } from '@/lib/database';
 
 export async function GET(
@@ -8,7 +9,7 @@ export async function GET(
   try {
     const { batchId } = await params;
 
-    console.log('Verification request for batch ID:', batchId);
+    logger.api.info('Verification request for batch ID', { batchId });
 
     if (!batchId) {
       return NextResponse.json(
@@ -20,9 +21,9 @@ export async function GET(
     // Test database connection first
     try {
       await prisma.$queryRaw`SELECT 1`;
-      console.log('Database connection test passed');
+      logger.api.info('Database connection test passed');
     } catch (dbError) {
-      console.error('Database connection test failed:', dbError);
+      logger.api.error('Database connection test failed', dbError);
       return NextResponse.json(
         { 
           success: false, 
@@ -79,14 +80,15 @@ export async function GET(
         select: { id: true, status: true, createdAt: true }
       });
       
-      console.log('Batch not found. Debug info:');
-      console.log('- Total batches in database:', totalBatches);
-      console.log('- Requested batch ID:', batchId);
-      console.log('- Batch ID length:', batchId.length);
-      console.log('- Batch ID type:', typeof batchId);
-      console.log('- Recent batches:', recentBatches);
-      console.log('- Similar batches:', allBatches);
-      console.log('- Exact match (case insensitive):', exactBatch);
+      logger.api.error('Batch not found. Debug info', {
+        totalBatches,
+        requestedBatchId: batchId,
+        batchIdLength: batchId.length,
+        batchIdType: typeof batchId,
+        recentBatches,
+        similarBatches: allBatches,
+        exactMatch: exactBatch
+      });
       
       return NextResponse.json(
         { 
@@ -199,7 +201,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Database verification error:', error);
+    logger.api.error('Database verification error', error);
     return NextResponse.json(
       {
         success: false,
@@ -239,7 +241,7 @@ async function performIntegrityChecks(batchId: string) {
       passed: hasIntegrity,
     };
   } catch (error) {
-    console.error('Integrity check error:', error);
+    logger.api.error('Integrity check error', error);
     return {
       foreignKeysValid: false,
       dataConsistency: false,

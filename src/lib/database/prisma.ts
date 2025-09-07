@@ -1,11 +1,19 @@
 import { PrismaClient } from '@prisma/client';
+import logger from '@/lib/logger';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+const prismaLog: Array<'query' | 'info' | 'warn' | 'error'> =
+  process.env.PRISMA_DEBUG === '1'
+    ? ['query', 'info', 'warn', 'error']
+    : process.env.NODE_ENV === 'development'
+    ? ['query', 'error', 'warn']
+    : ['error'];
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  log: prismaLog,
   datasources: {
     db: {
       url: process.env.DATABASE_URL,
@@ -21,7 +29,7 @@ export async function checkDatabaseConnection(): Promise<boolean> {
     await prisma.$queryRaw`SELECT 1`;
     return true;
   } catch (error) {
-    console.error('Database connection failed:', error);
+    logger.database.error('Database connection failed', error);
     return false;
   }
 }
@@ -65,7 +73,7 @@ export async function getDatabaseStats(): Promise<{
       lastImportDate: lastImport?.importDate || null
     };
   } catch (error) {
-    console.error('Failed to get database stats:', error);
+    logger.database.error('Failed to get database stats', error);
     throw new Error('Failed to retrieve database statistics');
   }
 }
@@ -131,7 +139,7 @@ export async function getSlowQueries(): Promise<any[]> {
     return slowQueries as any[];
   } catch (error) {
     // pg_stat_statements might not be enabled
-    console.warn('Could not retrieve slow queries. Ensure pg_stat_statements extension is enabled.');
+    logger.database.warn('Could not retrieve slow queries. Ensure pg_stat_statements extension is enabled');
     return [];
   }
 }

@@ -1,4 +1,5 @@
 "use client";
+import logger from '@/lib/logger';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +21,7 @@ export default function ImportPage() {
   const [successMessage, setSuccessMessage] = useState<string>('');
 
   const handleImportStart = (batchId: string) => {
-    console.log('Import started with batch ID:', batchId);
+    logger.import.info('Import started with batch ID', { batchId });
     setCurrentBatchId(batchId);
     setActiveTab('progress');
   };

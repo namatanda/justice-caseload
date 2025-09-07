@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 import { validateUploadedFile, validateCsvStructure, ValidationError } from '@/lib/import/file-handler';
 import { CaseReturnRowSchema } from '@/lib/validation/schemas';
 
@@ -40,12 +41,12 @@ export async function POST(request: NextRequest) {
 
     // Get file size for logging and potential large file handling
     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-    console.log(`Processing CSV file: ${file.name}, Size: ${fileSizeMB}MB`);
+    logger.api.info(`Processing CSV file: ${file.name}, Size: ${fileSizeMB}MB`);
     
     // Check if file is very large (potentially problematic)
     const isVeryLarge = file.size > 5 * 1024 * 1024; // 5MB threshold
     if (isVeryLarge) {
-      console.log(`Large file detected (${fileSizeMB}MB). Using optimized validation.`);
+      logger.api.info(`Large file detected (${fileSizeMB}MB). Using optimized validation`);
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -99,9 +100,17 @@ export async function POST(request: NextRequest) {
             validSampleRows.push(validatedRow);
           } catch (error) {
             if (error instanceof Error) {
-              // Parse Zod error for better error messages
-              const zodError = error.message;
-              const fieldErrors = parseZodError(zodError, row);
+              // Check if it's a ZodError with issues
+              const zodError = error as any;
+              let fieldErrors: FieldError[] = [];
+              
+              if (zodError.issues && Array.isArray(zodError.issues)) {
+                // Handle ZodError with structured issues
+                fieldErrors = parseZodIssues(zodError.issues, row);
+              } else {
+                // Fallback to parsing error message
+                fieldErrors = parseZodError(error.message, row);
+              }
 
               fieldErrors.forEach(fieldError => {
                 validationErrors.push({
@@ -142,7 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Validation error:', error);
+    logger.api.error('Validation error', error);
     return NextResponse.json(
       {
         success: false,
@@ -161,6 +170,33 @@ interface FieldError {
   rawValue: any;
 }
 
+function parseZodIssues(issues: any[], row: any): FieldError[] {
+  const errors: FieldError[] = [];
+
+  for (const issue of issues) {
+    const field = issue.path && issue.path.length > 0 ? issue.path[0] : 'general';
+    const rawValue = row[field];
+    
+    let message = `${field}: ${issue.message}`;
+    if (issue.code === 'invalid_type' && issue.expected && issue.received) {
+      if (issue.received === 'undefined') {
+        message = `${field} is required but missing`;
+      } else {
+        message = `${field}: Expected ${issue.expected}, received ${issue.received}`;
+      }
+    }
+
+    errors.push({
+      field,
+      message,
+      suggestion: getFieldValidationSuggestion(field, issue.message, rawValue),
+      rawValue
+    });
+  }
+
+  return errors;
+}
+
 function parseZodError(zodError: string, row: any): FieldError[] {
   const errors: FieldError[] = [];
 
@@ -170,10 +206,13 @@ function parseZodError(zodError: string, row: any): FieldError[] {
     if (missingFieldsMatch) {
       const missingFields = missingFieldsMatch[1].split(', ');
       missingFields.forEach(field => {
+        // Check if field is actually optional (like next hearing fields)
+        const isOptional = field.startsWith('next_');
+        const requiredText = isOptional ? 'recommended' : 'required';
         errors.push({
           field,
-          message: `${field} is required but missing or empty`,
-          suggestion: `Please provide a value for ${field}`,
+          message: `${field} is ${requiredText} but missing or empty`,
+          suggestion: isOptional ? `Provide a value for ${field} if available, or leave empty for no next hearing date` : `Please provide a value for ${field}`,
           rawValue: row[field] || null
         });
       });
@@ -214,88 +253,100 @@ function parseZodError(zodError: string, row: any): FieldError[] {
 }
 
 function getFieldValidationSuggestion(field: string, message: string, rawValue: any): string {
+  const isNextHearingField = field.startsWith('next_');
+  const optionalText = isNextHearingField ? ' (optional field)' : '';
+
   // Date field validations
-  if (field.includes('date') || field.includes('filed')) {
+  if (field.includes('date') || field.includes('filed') || isNextHearingField) {
     // Handle year fields specifically
     if (field.includes('yyyy') || field === 'filed_yyyy' || field === 'date_yyyy' || field === 'next_yyyy') {
       const currentYear = new Date().getFullYear();
       if (message.includes('greater than or equal to')) {
         if (field === 'filed_yyyy') {
-          return `Year must be 1960 or later. Found: ${rawValue}`;
+          return `Year must be 1960 or later${optionalText}. Found: ${rawValue}`;
         } else {
-          return `Year must be 2015 or later. Found: ${rawValue}`;
+          return `Year must be 2015 or later${optionalText}. Found: ${rawValue}`;
         }
       }
       if (message.includes('less than or equal to')) {
-        return `Year must be ${currentYear} or earlier. Found: ${rawValue}`;
+        return `Year must be ${currentYear} or earlier${optionalText}. Found: ${rawValue}`;
       }
       if (field === 'filed_yyyy') {
-        return `Year must be between 1960 and ${currentYear}. Found: ${rawValue}`;
+        return `Year must be between 1960 and ${currentYear}${optionalText}. Found: ${rawValue}`;
       } else {
-        return `Year must be between 2015 and ${currentYear}. Found: ${rawValue}`;
+        return `Year must be between 2015 and ${currentYear}${optionalText}. Found: ${rawValue}`;
       }
     }
 
     // Handle day fields
-    if (field.includes('dd') || field === 'filed_dd') {
+    if (field.includes('dd') || field === 'filed_dd' || field === 'next_dd') {
       if (message.includes('greater than or equal to')) {
-        return `Day must be between 1-31. Found: ${rawValue}`;
+        return `Day must be between 1-31${optionalText}. Found: ${rawValue}`;
       }
       if (message.includes('less than or equal to')) {
-        return `Day must be between 1-31. Found: ${rawValue}`;
+        return `Day must be between 1-31${optionalText}. Found: ${rawValue}`;
+      }
+      if (isNextHearingField) {
+        return `Next hearing day is optional but if provided, must be valid (1-31). Found: ${rawValue}`;
       }
     }
 
     // Handle month fields
-    if (field.includes('mon') || field === 'filed_mon') {
+    if (field.includes('mon') || field === 'filed_mon' || field === 'next_mon') {
       if (message.includes('length')) {
-        return `Month should be 3-letter abbreviation (e.g., Jan, Feb). Found: ${rawValue}`;
+        return `Month should be 3-letter abbreviation (e.g., Jan, Feb)${optionalText}. Found: ${rawValue}`;
+      }
+      if (isNextHearingField) {
+        return `Next hearing month is optional but if provided, must be 3-letter abbreviation (e.g., Jan, Feb). Found: ${rawValue}`;
       }
     }
 
     // Generic date field suggestions
     if (message.includes('greater than or equal to')) {
-      return `Ensure ${field} is a valid day (1-31)`;
+      return `Ensure ${field} is a valid day (1-31)${optionalText}`;
     }
     if (message.includes('less than or equal to')) {
-      return `Ensure ${field} is within valid range`;
+      return `Ensure ${field} is within valid range${optionalText}`;
     }
     if (message.includes('length')) {
-      return `Month should be 3-letter abbreviation (e.g., Jan, Feb)`;
+      return `Month should be 3-letter abbreviation (e.g., Jan, Feb)${optionalText}`;
     }
-    return `Ensure date format is correct: ${field} should be valid for its type`;
+    if (isNextHearingField) {
+      return `Next hearing ${field} is optional but if provided, must be valid. Found: ${rawValue}`;
+    }
+    return `Ensure date format is correct: ${field} should be valid for its type${optionalText}`;
   }
 
   // Numeric field validations
   if (message.includes('number') || field.includes('male') || field.includes('female') || field.includes('witness') || field.includes('custody')) {
     if (message.includes('greater than or equal to')) {
-      return `${field} must be 0 or greater`;
+      return `${field} must be 0 or greater${optionalText}`;
     }
     if (message.includes('less than or equal to')) {
-      return `${field} exceeds maximum allowed value`;
+      return `${field} exceeds maximum allowed value${optionalText}`;
     }
-    return `${field} must be a valid number`;
+    return `${field} must be a valid number${optionalText}`;
   }
 
   // String field validations
   if (message.includes('length') || field.includes('court') || field.includes('judge') || field.includes('case')) {
     if (message.includes('too long')) {
-      return `${field} is too long. Maximum length exceeded.`;
+      return `${field} is too long. Maximum length exceeded.${optionalText}`;
     }
     if (message.includes('too short') || message.includes('empty')) {
-      return `${field} cannot be empty`;
+      return `${field} cannot be empty${optionalText}`;
     }
-    return `${field} must be properly formatted text`;
+    return `${field} must be properly formatted text${optionalText}`;
   }
 
   // Enum validations
   if (message.includes('invalid enum') || field === 'legalrep') {
     if (field === 'legalrep') {
-      return `${field} must be either "Yes" or "No" (case sensitive)`;
+      return `${field} must be either "Yes" or "No" (case sensitive)${optionalText}`;
     }
-    return `${field} contains invalid value. Check allowed values.`;
+    return `${field} contains invalid value. Check allowed values.${optionalText}`;
   }
 
   // Default suggestion
-  return `Check the format and value for ${field}`;
+  return `Check the format and value for ${field}${optionalText}`;
 }

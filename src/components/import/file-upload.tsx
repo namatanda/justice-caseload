@@ -1,4 +1,5 @@
 "use client";
+import logger from '@/lib/logger';
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
     message: string;
     details?: string;
     code?: string;
+    existingBatchId?: string;
     timestamp: string;
   } | null>(null);
   const [validationResults, setValidationResults] = useState<any>(null);
@@ -73,7 +75,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
   const validateFile = async () => {
     if (!selectedFile) return;
 
-    console.log('🔍 DEBUG: Starting file validation for:', selectedFile.name);
+    logger.import.info('Starting file validation for', { filename: selectedFile.name });
     setIsValidating(true);
     setValidationStartTime(Date.now());
     setElapsedTime(0);
@@ -84,7 +86,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
     
     if (isLargeFile(selectedFile)) {
       validationTimeout = setTimeout(() => {
-        console.log('⚠️ DEBUG: Validation timeout safety triggered');
+        logger.import.warn('Validation timeout safety triggered');
         setError({
           message: 'Validation is taking longer than expected. For very large files (>10,000 rows), you may need to split the file into smaller parts.',
           timestamp: new Date().toISOString(),
@@ -97,15 +99,15 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      console.log('🔍 DEBUG: Sending validation request...');
+      logger.import.info('Sending validation request');
       const response = await fetch('/api/validate/csv', {
         method: 'POST',
         body: formData,
       });
 
-      console.log('🔍 DEBUG: Validation response status:', response.status);
+      logger.import.info('Validation response status', { status: response.status });
       const result = await response.json();
-      console.log('🔍 DEBUG: Validation result:', result);
+      logger.import.info('Validation result', result);
 
       if (validationTimeout) {
         clearTimeout(validationTimeout);
@@ -117,7 +119,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
           `${err.message}${err.suggestion ? ` (${err.suggestion})` : ''}`
         ).join('\n') || result.error || 'Validation failed';
 
-        console.log('🔍 DEBUG: Validation failed with errors:', errorMessages);
+        logger.import.error('Validation failed with errors', { errorMessages, count: result.errors?.length });
         setError({
           message: errorMessages,
           timestamp: new Date().toISOString(),
@@ -125,7 +127,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
         return;
       }
 
-      console.log('🔍 DEBUG: Validation successful, setting results');
+      logger.import.info('Validation successful, setting results', { recordCount: result.recordCount });
       setValidationResults(result);
       onValidationComplete(result, selectedFile);
     } catch (err) {
@@ -134,14 +136,14 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
       }
       
       const errorMessage = err instanceof Error ? err.message : 'Failed to validate file';
-      console.error('❌ DEBUG: Validation error:', err);
+      logger.import.error('Validation error', err);
       setError({
         message: errorMessage,
         details: err instanceof Error ? err.stack : undefined,
         timestamp: new Date().toISOString(),
       });
     } finally {
-      console.log('🔍 DEBUG: Validation process completed');
+      logger.import.info('Validation process completed', { duration: elapsedTime });
       setIsValidating(false);
       setValidationStartTime(null);
       setElapsedTime(0);
@@ -151,7 +153,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
   const uploadFile = async () => {
     if (!selectedFile) return;
 
-    console.log('🚀 Starting actual database upload for file:', selectedFile.name);
+    logger.import.info('Starting actual database upload for file', { filename: selectedFile.name });
     setIsUploading(true);
     setError(null);
     setUploadProgress(10);
@@ -165,12 +167,12 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
       
       // If Redis isn't available, provide feedback to user
       if (!redisAvailable) {
-        console.log('⚠️ Redis not available, uploads will use synchronous processing');
+        logger.import.warn('Redis not available, uploads will use synchronous processing');
         // Add warning about limited processing
         formData.append('processingMode', 'sync');
       }
 
-      console.log('📡 Sending upload request to /api/import/upload...');
+      logger.import.info('Sending upload request to /api/import/upload');
       setUploadProgress(25);
 
       const response = await fetch('/api/import/upload', {
@@ -178,25 +180,48 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
         body: formData,
       });
 
-      console.log('📡 Upload response status:', response.status);
+      logger.import.info('Upload response status', { status: response.status });
       setUploadProgress(50);
 
       const result = await response.json();
-      console.log('📡 Upload result:', result);
+      logger.import.info('Upload result', result);
 
       if (!result.success) {
-        console.error('❌ Upload failed:', result.error);
+        logger.import.error('Upload failed', { error: result.error, details: result.details });
         
-        // Handle specific error case for previously failed imports
-        let errorMessage = result.error || 'Upload failed';
-        let errorDetails = result.details || 'Unknown upload error';
+        // Parse the error to determine the type and provide appropriate UI feedback
+        const errorMessage = result.error || 'Upload failed';
+        const errorDetails = result.details || 'Unknown upload error';
         
-        // Improve error message for duplicate detection failures
-        if (errorDetails && errorDetails.includes('has already been imported')) {
-          errorMessage = 'This file appears to have been previously imported';
-          errorDetails = 'If the previous import failed or had 0% success rate, you can now retry it with the same file.';
+        // Handle duplicate import specifically
+        if (errorMessage.includes('File has already been imported successfully') || 
+            errorMessage.includes('Duplicate import found')) {
+          const batchIdMatch = errorMessage.match(/Batch ID: ([a-f0-9-]+)/);
+          const existingBatchId = batchIdMatch ? batchIdMatch[1] : null;
+          
+          setError({
+            message: 'Duplicate File Detected',
+            details: errorDetails,
+            code: 'DUPLICATE_IMPORT',
+            existingBatchId,
+            timestamp: new Date().toISOString(),
+          });
+          return;
         }
         
+        // Handle import initiation failure
+        if (errorMessage.includes('Failed to initiate import') || 
+            errorDetails.includes('Import initiation failed')) {
+          setError({
+            message: 'Import System Error',
+            details: 'The import system is currently experiencing issues. This may be due to database connectivity or background worker problems.',
+            code: 'IMPORT_INITIATION_FAILED',
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+        
+        // Handle general upload errors
         setError({
           message: errorMessage,
           details: errorDetails,
@@ -206,7 +231,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
         return;
       }
 
-      console.log('✅ Upload successful, batch ID:', result.batchId);
+      logger.import.info('Upload successful', { batchId: result.batchId });
       setUploadProgress(100);
 
       // Call the import start callback to switch to progress tracking
@@ -214,10 +239,10 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload file';
-      console.error('❌ Upload error:', err);
+      logger.import.error('Upload error', err);
       setError({
-        message: errorMessage,
-        details: err instanceof Error ? err.stack : undefined,
+        message: 'Network or Connection Error',
+        details: errorMessage,
         code: 'NETWORK_ERROR',
         timestamp: new Date().toISOString(),
       });
@@ -254,7 +279,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
       const result = await response.json();
       return result.redisConnected;
     } catch (error) {
-      console.error('❌ Redis status check failed:', error);
+      logger.import.error('Redis status check failed', error);
       return false;
     }
   };
@@ -452,49 +477,212 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
             <div className="flex items-start gap-3">
               <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <h3 className="font-semibold text-red-800 mb-2">
-                  {error.code === 'NETWORK_ERROR' ? 'Connection Error' :
-                   error.code === 'VALIDATION_ERROR' ? 'Validation Error' :
-                   error.code === 'UPLOAD_ERROR' ? 'Upload Error' : 'Error'}
-                </h3>
+                {/* Duplicate Import Error */}
+                {error.code === 'DUPLICATE_IMPORT' && (
+                  <>
+                    <h3 className="font-semibold text-orange-800 mb-2 flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      File Already Imported
+                    </h3>
+                    
+                    <div className="bg-orange-100 border border-orange-300 rounded-lg p-3 mb-3">
+                      <p className="text-orange-800 text-sm mb-2">
+                        This file has already been successfully imported into the database.
+                      </p>
+                      {error.existingBatchId && (
+                        <p className="text-xs text-orange-700">
+                          Previous import batch ID: <code className="bg-orange-200 px-1 rounded">{error.existingBatchId}</code>
+                        </p>
+                      )}
+                    </div>
 
-                <p className="text-red-700 mb-3">{error.message}</p>
+                    <div className="space-y-2 text-sm">
+                      <p className="text-gray-700">
+                        <strong>What you can do:</strong>
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-gray-600 ml-2">
+                        <li>Check the import history to view the previous import</li>
+                        <li>Use a different CSV file if you have new data</li>
+                        <li>Contact your administrator if you believe this is an error</li>
+                      </ul>
+                    </div>
 
-                {error.details && (
-                  <details className="mb-3">
-                    <summary className="text-sm text-red-600 cursor-pointer hover:text-red-800">
-                      Show technical details
-                    </summary>
-                    <pre className="text-xs text-red-600 bg-red-100 p-2 rounded mt-2 overflow-x-auto">
-                      {error.details}
-                    </pre>
-                  </details>
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open('/import', '_blank')}
+                        className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                      >
+                        View Import History
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setError(null);
+                          setSelectedFile(null);
+                          setValidationResults(null);
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = '';
+                          }
+                        }}
+                        className="text-orange-600 hover:bg-orange-100"
+                      >
+                        Choose Different File
+                      </Button>
+                    </div>
+                  </>
                 )}
 
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      // Retry the last failed operation
-                      if (selectedFile && !validationResults) {
-                        validateFile();
-                      } else if (validationResults?.valid) {
-                        uploadFile();
-                      }
-                    }}
-                    className="border-red-300 text-red-700 hover:bg-red-100"
-                  >
-                    Try Again
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setError(null)}
-                    className="text-red-600 hover:bg-red-100"
-                  >
-                    Dismiss
-                  </Button>
+                {/* Import System Error */}
+                {error.code === 'IMPORT_INITIATION_FAILED' && (
+                  <>
+                    <h3 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
+                      <XCircle className="h-4 w-4" />
+                      Import System Error
+                    </h3>
+                    
+                    <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-3">
+                      <p className="text-red-800 text-sm mb-2">
+                        The import system is currently experiencing issues and cannot process your file.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <p className="text-gray-700">
+                        <strong>Possible causes:</strong>
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-gray-600 ml-2">
+                        <li>Database connectivity issues</li>
+                        <li>Background worker services are down</li>
+                        <li>System maintenance in progress</li>
+                      </ul>
+                      <p className="text-gray-700 mt-3">
+                        <strong>What you can do:</strong>
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-gray-600 ml-2">
+                        <li>Wait a few minutes and try again</li>
+                        <li>Contact your system administrator</li>
+                        <li>Check if background services are running</li>
+                      </ul>
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => uploadFile()}
+                        className="border-red-300 text-red-700 hover:bg-red-100"
+                      >
+                        Retry Import
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open('/api/system/health', '_blank')}
+                        className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                      >
+                        Check System Status
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setError(null)}
+                        className="text-gray-600 hover:bg-gray-100"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* Network/Connection Error */}
+                {error.code === 'NETWORK_ERROR' && (
+                  <>
+                    <h3 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
+                      <XCircle className="h-4 w-4" />
+                      Connection Error
+                    </h3>
+                    
+                    <p className="text-red-700 mb-3">
+                      Unable to connect to the server. Please check your internet connection and try again.
+                    </p>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => uploadFile()}
+                        className="border-red-300 text-red-700 hover:bg-red-100"
+                      >
+                        Retry Upload
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setError(null)}
+                        className="text-red-600 hover:bg-red-100"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* General Upload Error */}
+                {(!error.code || error.code === 'UPLOAD_ERROR') && (
+                  <>
+                    <h3 className="font-semibold text-red-800 mb-2">
+                      Upload Error
+                    </h3>
+
+                    <p className="text-red-700 mb-3">{error.message}</p>
+
+                    {error.details && (
+                      <details className="mb-3">
+                        <summary className="text-sm text-red-600 cursor-pointer hover:text-red-800">
+                          Show technical details
+                        </summary>
+                        <pre className="text-xs text-red-600 bg-red-100 p-2 rounded mt-2 overflow-x-auto">
+                          {error.details}
+                        </pre>
+                      </details>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          // Retry the last failed operation
+                          if (selectedFile && !validationResults) {
+                            validateFile();
+                          } else if (validationResults?.valid) {
+                            uploadFile();
+                          }
+                        }}
+                        className="border-red-300 text-red-700 hover:bg-red-100"
+                      >
+                        Try Again
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setError(null)}
+                        className="text-red-600 hover:bg-red-100"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* Common timestamp footer */}
+                <div className="mt-3 pt-2 border-t border-red-200">
+                  <p className="text-xs text-red-500">
+                    Error occurred at {new Date(error.timestamp).toLocaleString()}
+                  </p>
                 </div>
               </div>
             </div>
@@ -576,7 +764,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
             <div className="text-center">
               <Button
                 onClick={async () => {
-                  console.log('🔘 START IMPORT button clicked');
+                  logger.import.info('START IMPORT button clicked');
 
                   // Create confirmation message based on validation status
                   let confirmMessage = `🚀 Ready to Import ${validationResults.recordCount} rows of data?\n\nThis action will:\n• Upload CSV to database\n• Process case activities\n• Create court/judge records\n\n`;
@@ -589,13 +777,13 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
 
                   const confirmed = window.confirm(confirmMessage);
 
-                  console.log('🔘 User confirmation result:', confirmed);
+                  logger.import.info('User confirmation result', { confirmed });
 
                   if (confirmed) {
-                    console.log('🔘 Starting upload process...');
+                    logger.import.info('Starting upload process');
                     await uploadFile();
                   } else {
-                    console.log('🔘 User cancelled upload');
+                    logger.import.info('User cancelled upload');
                   }
                 }}
                 size="lg"

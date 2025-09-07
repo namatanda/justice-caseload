@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 import { prisma } from '@/lib/database/prisma';
 import { importQueue } from '@/lib/database/redis';
 
@@ -62,7 +63,7 @@ export async function DELETE(
         await jobToRemove.remove();
       }
     } catch (queueError) {
-      console.warn('Could not remove job from queue:', queueError);
+      logger.api.warn('Could not remove job from queue', queueError);
     }
 
     return NextResponse.json({
@@ -72,7 +73,7 @@ export async function DELETE(
     });
 
   } catch (error) {
-    console.error('Cancel import error:', error);
+    logger.api.error('Cancel import error', error);
     return NextResponse.json(
       {
         success: false,
@@ -144,7 +145,7 @@ export async function POST(
     );
 
   } catch (error) {
-    console.error('Retry import error:', error);
+    logger.api.error('Retry import error', error);
     return NextResponse.json(
       {
         success: false,

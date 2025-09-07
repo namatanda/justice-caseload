@@ -61,3 +61,6 @@ You can start editing the main page by modifying `src/app/page.tsx`. The page au
 For detailed database setup instructions, see [DATABASE_SETUP.md](DATABASE_SETUP.md).
 For Docker-specific instructions, see [DOCKER.md](DOCKER.md).
 For information about the data import system, see [IMPORT_SYSTEM.md](IMPORT_SYSTEM.md).
+
+
+#npx prisma studio --port 5556 // http://localhost:5556

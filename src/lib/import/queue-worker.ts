@@ -2,38 +2,76 @@ import { Worker, Job } from 'bullmq';
 import { redis, ImportJobData, AnalyticsJobData } from '../database/redis';
 import { processCsvImport } from './csv-processor';
 import { refreshDashboardAnalytics, generateReport } from '../analytics/dashboard';
+import { logger } from '@/lib/logger';
 
 // CSV Import Worker
 export const csvImportWorker = new Worker(
   'csv-import',
   async (job: Job<ImportJobData>) => {
     const { data } = job;
+    const attemptNumber = job.attemptsMade + 1;
+    const maxAttempts = 3;
     
-    console.log(`Processing CSV import job ${job.id} for file: ${data.filename}`);
+    logger.import.info(`Processing CSV import job ${job.id}`, { 
+      filename: data.filename, 
+      attempt: attemptNumber, 
+      maxAttempts 
+    });
     
     try {
       // Update job progress
-      await job.updateProgress({ step: 'starting', progress: 0 });
+      await job.updateProgress({ 
+        step: 'starting', 
+        progress: 0, 
+        attempt: attemptNumber,
+        message: `Starting import process (attempt ${attemptNumber})`
+      });
       
       // Process the CSV import
       await processCsvImport(data);
       
       // Mark job as complete
-      await job.updateProgress({ step: 'completed', progress: 100 });
+      await job.updateProgress({ 
+        step: 'completed', 
+        progress: 100,
+        attempt: attemptNumber,
+        message: 'Import completed successfully'
+      });
       
-      console.log(`CSV import job ${job.id} completed successfully`);
+      logger.info('general', `✅ CSV import job ${job.id} completed successfully on attempt ${attemptNumber}`);
       
-      return { success: true, batchId: data.batchId };
+      return { success: true, batchId: data.batchId, attempts: attemptNumber };
     } catch (error) {
-      console.error(`CSV import job ${job.id} failed:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('general', `❌ CSV import job ${job.id} failed on attempt ${attemptNumber}:`, errorMessage);
+      
+      // Update job progress with error info
+      await job.updateProgress({ 
+        step: 'failed', 
+        progress: 0,
+        attempt: attemptNumber,
+        message: `Import failed: ${errorMessage}`,
+        error: errorMessage
+      });
+      
+      // If this is not the last attempt, provide retry info
+      if (attemptNumber < maxAttempts) {
+        logger.import.info(`Job ${job.id} will be retried`, { 
+          nextAttempt: attemptNumber + 1, 
+          maxAttempts 
+        });
+      } else {
+        logger.error('general', `💥 Job ${job.id} failed permanently after ${maxAttempts} attempts`);
+      }
+      
       throw error;
     }
   },
   {
     connection: redis,
-    concurrency: parseInt(process.env.QUEUE_CONCURRENCY || '5'),
-    removeOnComplete: 100,
-    removeOnFail: 50,
+    concurrency: parseInt(process.env.QUEUE_CONCURRENCY || '3'),
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 50 }
   }
 );
 
@@ -43,7 +81,7 @@ export const analyticsWorker = new Worker(
   async (job: Job<AnalyticsJobData>) => {
     const { data } = job;
     
-    console.log(`Processing analytics job ${job.id} of type: ${data.type}`);
+    logger.info('general', `Processing analytics job ${job.id} of type: ${data.type}`);
     
     try {
       await job.updateProgress({ step: 'starting', progress: 0 });
@@ -61,53 +99,53 @@ export const analyticsWorker = new Worker(
       
       await job.updateProgress({ step: 'completed', progress: 100 });
       
-      console.log(`Analytics job ${job.id} completed successfully`);
+      logger.info('general', `Analytics job ${job.id} completed successfully`);
       
       return { success: true };
     } catch (error) {
-      console.error(`Analytics job ${job.id} failed:`, error);
+      logger.error('general', `Analytics job ${job.id} failed:`, error);
       throw error;
     }
   },
   {
     connection: redis,
     concurrency: 2,
-    removeOnComplete: 50,
-    removeOnFail: 25,
+    removeOnComplete: { count: 50 },
+    removeOnFail: { count: 25 }
   }
 );
 
 // Worker event handlers
 csvImportWorker.on('completed', (job) => {
-  console.log(`CSV import job ${job.id} completed`);
+  logger.info('general', `CSV import job ${job.id} completed`);
 });
 
 csvImportWorker.on('failed', (job, err) => {
-  console.error(`CSV import job ${job?.id} failed:`, err);
+  logger.error('general', `CSV import job ${job?.id} failed:`, err);
 });
 
 csvImportWorker.on('progress', (job, progress) => {
-  console.log(`CSV import job ${job.id} progress:`, progress);
+  logger.info('general', `CSV import job ${job.id} progress:`, progress);
 });
 
 analyticsWorker.on('completed', (job) => {
-  console.log(`Analytics job ${job.id} completed`);
+  logger.info('general', `Analytics job ${job.id} completed`);
 });
 
 analyticsWorker.on('failed', (job, err) => {
-  console.error(`Analytics job ${job?.id} failed:`, err);
+  logger.error('general', `Analytics job ${job?.id} failed:`, err);
 });
 
 // Graceful shutdown
 export async function shutdownWorkers(): Promise<void> {
-  console.log('Shutting down workers...');
+  logger.info('general', 'Shutting down workers...');
   
   await Promise.all([
     csvImportWorker.close(),
     analyticsWorker.close(),
   ]);
   
-  console.log('Workers shut down successfully');
+  logger.info('general', 'Workers shut down successfully');
 }
 
 // Worker health check

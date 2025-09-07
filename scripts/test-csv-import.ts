@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { CaseReturnRowSchema } from '../src/lib/validation/schemas';
+import { CaseReturnRowSchema } from '../src/lib/validation/schemas.js';
 import { deriveCourtTypeFromCaseId } from '../src/lib/import/csv-processor';
 
 async function testCsvImport() {

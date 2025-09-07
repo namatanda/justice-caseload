@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import logger from '@/lib/logger';
 
 // Performance monitoring interfaces
 export interface QueryPerformance {
@@ -63,7 +64,7 @@ export async function getSlowQueries(limit: number = 10): Promise<QueryPerforman
       rows: Number(query.rows),
     }));
   } catch (error) {
-    console.warn('Could not retrieve slow queries. Ensure pg_stat_statements extension is enabled.');
+    logger.database.warn('Could not retrieve slow queries. Ensure pg_stat_statements extension is enabled');
     return [];
   }
 }
@@ -97,7 +98,7 @@ export async function getIndexUsage(): Promise<IndexUsage[]> {
       efficiency: Number(index.efficiency),
     }));
   } catch (error) {
-    console.error('Error retrieving index usage:', error);
+    logger.database.error('Error retrieving index usage', error);
     return [];
   }
 }
@@ -142,7 +143,7 @@ export async function getTableStatistics(): Promise<TableStatistics[]> {
       lastAnalyze: table.lastAnalyze,
     }));
   } catch (error) {
-    console.error('Error retrieving table statistics:', error);
+    logger.database.error('Error retrieving table statistics', error);
     return [];
   }
 }
@@ -347,7 +348,7 @@ export async function resetQueryStatistics(): Promise<boolean> {
     await prisma.$executeRaw`SELECT pg_stat_statements_reset();`;
     return true;
   } catch (error) {
-    console.error('Failed to reset query statistics:', error);
+    logger.database.error('Failed to reset query statistics', error);
     return false;
   }
 }
@@ -387,7 +388,7 @@ export async function getConnectionStatistics(): Promise<{
       maxConnections: Number(maxConn[0]?.max_connections) || 0,
     };
   } catch (error) {
-    console.error('Error retrieving connection statistics:', error);
+    logger.database.error('Error retrieving connection statistics', error);
     return {
       totalConnections: 0,
       activeConnections: 0,
@@ -403,7 +404,7 @@ export async function explainQuery(query: string): Promise<any[]> {
     const plan = await prisma.$queryRawUnsafe(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`);
     return plan as any[];
   } catch (error) {
-    console.error('Error explaining query:', error);
+    logger.database.error('Error explaining query', error);
     return [];
   }
 }

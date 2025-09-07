@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../database';
+import { logger } from '@/lib/logger';
 
 // Simple authentication interface
 export interface AuthenticatedRequest extends NextRequest {
@@ -49,7 +50,7 @@ export async function authenticateUser(token: string): Promise<UserSession | nul
     
     return null;
   } catch (error) {
-    console.error('Authentication error:', error);
+    logger.api.error('Authentication error', { error });
     return null;
   }
 }
@@ -78,7 +79,7 @@ export async function requireAuth(request: NextRequest): Promise<NextResponse | 
     
     return user;
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    logger.api.error('Auth middleware error', { error });
     return NextResponse.json(
       { error: 'Authentication failed' },
       { status: 500 }
@@ -132,7 +133,7 @@ export class SessionManager {
         include: { user: true },
       });
       
-      if (!session || session.expiresAt < new Date() || session.status !== 'ACTIVE') {
+      if (!session || !session.expiresAt || session.expiresAt < new Date() || session.status !== 'ACTIVE') {
         return null;
       }
       
@@ -149,7 +150,7 @@ export class SessionManager {
         role: session.user.role,
       };
     } catch (error) {
-      console.error('Session validation error:', error);
+      logger.api.error('Session validation error', { error });
       return null;
     }
   }
@@ -161,7 +162,7 @@ export class SessionManager {
         data: { status: 'EXPIRED' },
       });
     } catch (error) {
-      console.error('Session deletion error:', error);
+      logger.api.error('Session deletion error', { error });
     }
   }
 }
@@ -180,11 +181,13 @@ export function rateLimit(config: RateLimitConfig) {
     const windowStart = now - config.windowMs;
     
     // Clean up old entries
+    const keysToDelete: string[] = [];
     for (const [key, value] of rateLimitStore.entries()) {
       if (value.resetTime < now) {
-        rateLimitStore.delete(key);
+        keysToDelete.push(key);
       }
     }
+    keysToDelete.forEach(key => rateLimitStore.delete(key));
     
     const current = rateLimitStore.get(identifier);
     

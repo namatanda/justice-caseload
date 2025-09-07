@@ -1,5 +1,6 @@
 import { Judge, Court, CaseType, User, CourtType, UserRole } from '@prisma/client';
 import { prisma } from '../database';
+import { logger } from '@/lib/logger';
 import { 
   CreateJudgeSchema, 
   CreateCourtSchema, 
@@ -474,7 +475,7 @@ export async function getMasterDataStatistics(): Promise<{
       users: userStats
     };
   } catch (error) {
-    console.error('Error fetching master data statistics:', error);
+    logger.database.error('Error fetching master data statistics', { error });
     throw new Error('Failed to fetch master data statistics');
   }
 }

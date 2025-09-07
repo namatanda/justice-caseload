@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import logger from '@/lib/logger';
 import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
@@ -86,11 +87,11 @@ function generateCaseNumber(caseTypeCode: string, year: number): string {
 }
 
 async function seedDatabase() {
-  console.log('🌱 Starting database seeding...');
+  logger.system.info('Starting database seeding');
   
   try {
     // Clean existing data (optional - comment out if you want to keep existing data)
-    console.log('🧹 Cleaning existing data...');
+    logger.system.info('Cleaning existing data');
     await prisma.caseActivity.deleteMany({});
     await prisma.caseJudgeAssignment.deleteMany({});
     await prisma.case.deleteMany({});
@@ -101,7 +102,7 @@ async function seedDatabase() {
     await prisma.user.deleteMany({});
     
     // Seed users
-    console.log('👥 Seeding users...');
+    logger.system.info('Seeding users');
     const createdUsers = [];
     for (const user of sampleUsers) {
       const createdUser = await prisma.user.create({
@@ -109,10 +110,10 @@ async function seedDatabase() {
       });
       createdUsers.push(createdUser);
     }
-    console.log(`   Created ${createdUsers.length} users`);
+    logger.system.info(`Created ${createdUsers.length} users`);
     
     // Seed courts
-    console.log('🏛️  Seeding courts...');
+    logger.system.info('Seeding courts');
     const createdCourts = [];
     for (const court of sampleCourts) {
       const createdCourt = await prisma.court.create({
@@ -124,10 +125,10 @@ async function seedDatabase() {
       });
       createdCourts.push(createdCourt);
     }
-    console.log(`   Created ${createdCourts.length} courts`);
+    logger.system.info(`Created ${createdCourts.length} courts`);
     
     // Seed judges
-    console.log('⚖️  Seeding judges...');
+    logger.system.info('Seeding judges');
     const createdJudges = [];
     for (const judge of sampleJudges) {
       const createdJudge = await prisma.judge.create({
@@ -135,10 +136,10 @@ async function seedDatabase() {
       });
       createdJudges.push(createdJudge);
     }
-    console.log(`   Created ${createdJudges.length} judges`);
+    logger.system.info(`Created ${createdJudges.length} judges`);
     
     // Seed case types
-    console.log('📁 Seeding case types...');
+    logger.system.info('Seeding case types');
     const createdCaseTypes = [];
     for (const caseType of sampleCaseTypes) {
       const createdCaseType = await prisma.caseType.create({
@@ -150,10 +151,10 @@ async function seedDatabase() {
       });
       createdCaseTypes.push(createdCaseType);
     }
-    console.log(`   Created ${createdCaseTypes.length} case types`);
+    logger.system.info(`Created ${createdCaseTypes.length} case types`);
     
     // Create sample import batch
-    console.log('📦 Creating sample import batch...');
+    logger.system.info('Creating sample import batch');
     const sampleBatch = await prisma.dailyImportBatch.create({
       data: {
         importDate: new Date(),
@@ -170,7 +171,7 @@ async function seedDatabase() {
     });
     
     // Seed cases with activities
-    console.log('📝 Seeding cases and activities...');
+    logger.system.info('Seeding cases and activities');
     const numberOfCases = 100; // Adjust as needed
     const createdCases = [];
     let totalActivities = 0;
@@ -291,8 +292,8 @@ async function seedDatabase() {
       });
     }
     
-    console.log(`   Created ${createdCases.length} cases`);
-    console.log(`   Created ${totalActivities} case activities`);
+    logger.system.info(`Created ${createdCases.length} cases`);
+    logger.system.info(`Created ${totalActivities} case activities`);
     
     // Update import batch stats
     await prisma.dailyImportBatch.update({
@@ -305,15 +306,15 @@ async function seedDatabase() {
     });
     
     // Generate summary statistics
-    console.log('📊 Generating summary...');
+    logger.system.info('Generating summary');
     const stats = await prisma.case.groupBy({
       by: ['status'],
       _count: { id: true },
     });
     
-    console.log('   Case summary:');
+    logger.system.info('Case summary');
     stats.forEach(stat => {
-      console.log(`     ${stat.status}: ${stat._count.id} cases`);
+      logger.system.info(`Case status ${stat.status}: ${stat._count.id} cases`);
     });
     
     const judgeStats = await prisma.caseActivity.groupBy({
@@ -321,12 +322,12 @@ async function seedDatabase() {
       _count: { id: true },
     });
     
-    console.log(`   Judge workload: ${judgeStats.length} judges handling cases`);
+    logger.system.info(`Judge workload: ${judgeStats.length} judges handling cases`);
     
-    console.log('✅ Database seeding completed successfully!');
+    logger.system.info('Database seeding completed successfully');
     
   } catch (error) {
-    console.error('❌ Seeding failed:', error);
+    logger.system.error('Seeding failed', error);
     throw error;
   } finally {
     await prisma.$disconnect();
@@ -339,17 +340,17 @@ if (require.main === module) {
   const force = args.includes('--force');
   
   if (!force && process.env.NODE_ENV === 'production') {
-    console.error('❌ Seeding is not allowed in production. Use --force if you really need to.');
+    logger.system.error('Seeding is not allowed in production. Use --force if you really need to');
     process.exit(1);
   }
   
   seedDatabase()
     .then(() => {
-      console.log('🎉 Seeding completed successfully');
+      logger.system.info('Seeding completed successfully');
       process.exit(0);
     })
     .catch((error) => {
-      console.error('💥 Seeding failed:', error);
+      logger.system.error('Seeding failed', error);
       process.exit(1);
     });
 }

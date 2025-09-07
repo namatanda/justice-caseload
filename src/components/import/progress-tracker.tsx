@@ -1,4 +1,5 @@
 "use client";
+import logger from '@/lib/logger';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -63,18 +64,17 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
         // Stop polling if completed or failed
         if (result.status === 'COMPLETED' || result.status === 'FAILED') {
           setIsPolling(false);
-          // Add a small delay to ensure database transaction is committed before verification
+          // Only show verification for successful completions
           if (result.status === 'COMPLETED') {
             setTimeout(() => {
               setShowVerification(true);
             }, 3000); // Wait 3 seconds before starting verification
-          } else {
-            setShowVerification(true);
           }
+          // For FAILED status, don't show verification - let the error display handle it
         }
       } catch (err) {
         setError('Failed to fetch import status');
-        console.error('Status polling error:', err);
+        logger.import.error('Status polling error', err);
       }
     };
 
@@ -106,7 +106,7 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
       setShowVerification(false);
     } catch (err) {
       setError('Failed to cancel import');
-      console.error('Cancel error:', err);
+      logger.import.error('Cancel error', err);
     }
   };
 
@@ -164,8 +164,8 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
     );
   }
 
-  // Show verification if import is complete
-  if (showVerification && !verificationComplete) {
+  // Show verification if import is complete and successful
+  if (showVerification && status?.status === 'COMPLETED' && !verificationComplete) {
     return (
       <div className="space-y-6">
         {/* Import Summary First */}
@@ -210,7 +210,12 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
               {getStatusIcon(status.status)}
               <div>
                 <h3 className="text-lg font-semibold">
-                  {showVerification ? 'Import Completed - Verifying Database' : 'Import Progress'}
+                  {status.status === 'FAILED' 
+                    ? 'Import Failed' 
+                    : showVerification 
+                      ? 'Import Completed - Verifying Database' 
+                      : 'Import Progress'
+                  }
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   Batch ID: {status.batchId}
@@ -276,6 +281,34 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
         </CardContent>
       </Card>
 
+      {/* Failure Summary for Failed Imports */}
+      {status.status === 'FAILED' && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <XCircle className="h-5 w-5 text-red-600" />
+              <h4 className="font-semibold text-red-600">Import Failed</h4>
+            </div>
+            <div className="space-y-3">
+              <div className="text-sm">
+                <p className="font-medium">Import completed with errors:</p>
+                <ul className="mt-2 space-y-1 text-muted-foreground">
+                  <li>• {status.successfulRecords || 0} of {status.totalRecords || 0} records were successfully imported</li>
+                  <li>• {status.failedRecords || 0} records failed validation or database insertion</li>
+                  <li>• Review the error details below to understand what went wrong</li>
+                </ul>
+              </div>
+              <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+                <p className="text-sm text-red-800">
+                  <strong>Next Steps:</strong> Review the validation errors, fix the data in your CSV file, and try importing again. 
+                  {(status.successfulRecords || 0) > 0 && " Note that successfully imported records won't be duplicated on retry."}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Statistics */}
       <Card>
         <CardContent className="p-6">
@@ -321,7 +354,37 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
               {status.errors.slice(0, 10).map((error: any, index: number) => (
                 <Alert key={index} variant="destructive">
                   <AlertDescription className="text-sm">
-                    <strong>Row {error.rowNumber}:</strong> {error.errorMessage}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="destructive" className="text-xs">
+                          Row {error.rowNumber}
+                        </Badge>
+                        {error.field && (
+                          <Badge variant="outline" className="text-xs">
+                            {error.field}
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          {error.errorType}
+                        </Badge>
+                      </div>
+                      <div className="font-medium">{error.errorMessage}</div>
+                      {error.suggestion && (
+                        <div className="text-muted-foreground">
+                          💡 {error.suggestion}
+                        </div>
+                      )}
+                      {error.rawValue && (
+                        <details className="mt-1">
+                          <summary className="text-xs cursor-pointer text-muted-foreground">
+                            View raw value
+                          </summary>
+                          <pre className="text-xs mt-1 p-1 bg-muted rounded overflow-x-auto">
+                            {JSON.stringify(error.rawValue, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
                   </AlertDescription>
                 </Alert>
               ))}
@@ -358,14 +421,23 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
           )}
 
           {status.status === 'FAILED' && (
-            <Button
-              variant="outline"
-              onClick={() => window.location.reload()}
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Try Again
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => window.location.reload()}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Try Again
+              </Button>
+              <Button
+                onClick={onComplete}
+                className="flex items-center gap-2"
+              >
+                <Shield className="h-4 w-4" />
+                Back to Import
+              </Button>
+            </>
           )}
 
           {status.status === 'COMPLETED' && !showVerification && (

@@ -1,4 +1,5 @@
 import { CourtType } from '@prisma/client';
+import logger from '@/lib/logger';
 import { PrismaTransaction } from '../database';
 import { validateExtractedCourt, validateExtractedJudge, validateExtractedCaseType } from '../validation/schemas';
 
@@ -30,7 +31,7 @@ export async function extractAndNormalizeCourt(
   const normalizedCourtCode = normalizeCourtCode(courtCode);
   const inferredCourtType = derivedCourtType || inferCourtType(normalizedCourtName);
   
-  console.log('🏛️ PROCESSING COURT:', {
+  logger.database.info('PROCESSING COURT', {
     originalName: courtName,
     normalizedName: normalizedCourtName,
     normalizedCode: normalizedCourtCode,
@@ -50,7 +51,7 @@ export async function extractAndNormalizeCourt(
   });
   
   if (existingCourt) {
-    console.log('✅ FOUND EXISTING COURT:', {
+    logger.database.info('FOUND EXISTING COURT', {
       id: existingCourt.id,
       name: existingCourt.courtName,
       code: existingCourt.courtCode,
@@ -64,33 +65,74 @@ export async function extractAndNormalizeCourt(
     };
   }
   
-  // Prepare new court data
+  // Prepare new court data with unique court code
+  let baseCourtCode = normalizedCourtCode || generateCourtCode(normalizedCourtName);
+  
+  // Ensure court code is unique by checking for duplicates and appending suffix if needed
+  let courtCodeAttempt = 1;
+  let uniqueCourtCode = baseCourtCode;
+  
+  while (await tx.court.findFirst({ where: { courtCode: uniqueCourtCode } })) {
+    uniqueCourtCode = `${baseCourtCode}${courtCodeAttempt}`;
+    courtCodeAttempt++;
+    
+    // Prevent infinite loop - if we've tried 100 variations, something is wrong
+    if (courtCodeAttempt > 100) {
+      throw new Error(`Unable to generate unique court code for: ${normalizedCourtName}`);
+    }
+  }
+
   const newCourtData = {
     courtName: normalizedCourtName,
-    courtCode: normalizedCourtCode || generateCourtCode(normalizedCourtName),
+    courtCode: uniqueCourtCode,
     courtType: inferredCourtType,
     isActive: true
   };
 
-  console.log('📝 CREATING NEW COURT:', newCourtData);
+  logger.database.info('CREATING NEW COURT', newCourtData);
 
-  // Create new court
-  const newCourt = await tx.court.create({
-    data: newCourtData
-  });
+  // Create new court with error handling for constraint violations
+  try {
+    const newCourt = await tx.court.create({
+      data: newCourtData
+    });
 
-  console.log('✅ NEW COURT CREATED:', {
-    id: newCourt.id,
-    name: newCourt.courtName,
-    code: newCourt.courtCode,
-    type: newCourt.courtType
-  });
-  
-  return {
-    courtId: newCourt.id,
-    courtName: newCourt.courtName,
-    isNewCourt: true
-  };
+    logger.database.info('NEW COURT CREATED', {
+      id: newCourt.id,
+      name: newCourt.courtName,
+      code: newCourt.courtCode,
+      type: newCourt.courtType
+    });
+    
+    return {
+      courtId: newCourt.id,
+      courtName: newCourt.courtName,
+      isNewCourt: true
+    };
+  } catch (error) {
+    logger.database.error('COURT CREATION FAILED', error);
+    
+    // If it's a unique constraint violation, try to find the existing court
+    if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+      logger.database.info('CHECKING FOR EXISTING COURT WITH SAME CODE', { uniqueCourtCode });
+      
+      const existingCourtByCode = await tx.court.findFirst({
+        where: { courtCode: uniqueCourtCode }
+      });
+      
+      if (existingCourtByCode) {
+        logger.database.info('FOUND EXISTING COURT BY CODE', { court: existingCourtByCode });
+        return {
+          courtId: existingCourtByCode.id,
+          courtName: existingCourtByCode.courtName,
+          isNewCourt: false
+        };
+      }
+    }
+    
+    // Re-throw the error if we can't handle it
+    throw error;
+  }
 }
 
 // Judge extraction and normalization
@@ -115,7 +157,7 @@ export async function extractAndNormalizeJudge(
   const normalizedName = normalizeJudgeName(judgeFullName);
   const { firstName, lastName } = parseJudgeName(normalizedName);
   
-  console.log('👨‍⚖️ PROCESSING JUDGE:', {
+  logger.database.info('PROCESSING JUDGE', {
     originalName: judgeFullName,
     normalizedName,
     firstName,
@@ -138,7 +180,7 @@ export async function extractAndNormalizeJudge(
   });
   
   if (existingJudge) {
-    console.log('✅ FOUND EXISTING JUDGE:', {
+    logger.database.info('FOUND EXISTING JUDGE', {
       id: existingJudge.id,
       fullName: existingJudge.fullName,
       firstName: existingJudge.firstName,
@@ -160,14 +202,14 @@ export async function extractAndNormalizeJudge(
     isActive: true
   };
 
-  console.log('📝 CREATING NEW JUDGE:', newJudgeData);
+  logger.database.info('CREATING NEW JUDGE', newJudgeData);
   
   // Create new judge
   const newJudge = await tx.judge.create({
     data: newJudgeData
   });
 
-  console.log('✅ NEW JUDGE CREATED:', {
+  logger.database.info('NEW JUDGE CREATED', {
     id: newJudge.id,
     fullName: newJudge.fullName,
     firstName: newJudge.firstName,
@@ -196,7 +238,7 @@ export async function extractAndNormalizeCaseType(
   const normalizedName = normalizeCaseTypeName(caseTypeName);
   const caseTypeCode = generateCaseTypeCode(normalizedName);
   
-  console.log('📋 PROCESSING CASE TYPE:', {
+  logger.database.info('PROCESSING CASE TYPE', {
     originalName: caseTypeName,
     normalizedName,
     generatedCode: caseTypeCode
@@ -213,7 +255,7 @@ export async function extractAndNormalizeCaseType(
   });
   
   if (existingCaseType) {
-    console.log('✅ FOUND EXISTING CASE TYPE:', {
+    logger.database.info('FOUND EXISTING CASE TYPE', {
       id: existingCaseType.id,
       name: existingCaseType.caseTypeName,
       code: existingCaseType.caseTypeCode
@@ -230,14 +272,14 @@ export async function extractAndNormalizeCaseType(
     isActive: true
   };
 
-  console.log('📝 CREATING NEW CASE TYPE:', newCaseTypeData);
+  logger.database.info('CREATING NEW CASE TYPE', newCaseTypeData);
   
   // Create new case type
   const newCaseType = await tx.caseType.create({
     data: newCaseTypeData
   });
 
-  console.log('✅ NEW CASE TYPE CREATED:', {
+  logger.database.info('NEW CASE TYPE CREATED', {
     id: newCaseType.id,
     name: newCaseType.caseTypeName,
     code: newCaseType.caseTypeCode,
@@ -277,13 +319,24 @@ function extractKeyWords(courtName: string): string {
 
 function generateCourtCode(courtName: string): string {
   // Generate court code from name if not provided
-  return courtName
+  // Include more characters to reduce collisions
+  const words = courtName
     .split(' ')
-    .filter(word => word.length > 2)
-    .map(word => word.charAt(0))
-    .join('')
-    .toUpperCase()
-    .substring(0, 10); // Limit to 10 characters
+    .filter(word => word.length > 2);
+    
+  if (words.length === 1) {
+    // Single word - take first 6 characters
+    return words[0].substring(0, 6).toUpperCase();
+  } else if (words.length === 2) {
+    // Two words - take first 3 chars of each
+    return (words[0].substring(0, 3) + words[1].substring(0, 3)).toUpperCase();
+  } else {
+    // Multiple words - take first 2 chars of first 3 words
+    return words.slice(0, 3)
+      .map(word => word.substring(0, 2))
+      .join('')
+      .toUpperCase();
+  }
 }
 
 /**

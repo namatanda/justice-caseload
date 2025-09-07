@@ -1,9 +1,13 @@
 "use client";
+import logger from '@/lib/logger';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -50,6 +54,15 @@ export function ImportHistory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [hasMore, setHasMore] = useState(false);
 
+  // Error viewing states
+  const [selectedBatch, setSelectedBatch] = useState<ImportBatch | null>(null);
+  const [errors, setErrors] = useState<any[]>([]);
+  const [errorLoading, setErrorLoading] = useState(false);
+  const [errorFetchError, setErrorFetchError] = useState<string | null>(null);
+  const [currentErrorPage, setCurrentErrorPage] = useState(1);
+  const [totalErrors, setTotalErrors] = useState(0);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+
   const fetchHistory = async (pageNum = 1, reset = false) => {
     try {
       setLoading(true);
@@ -86,11 +99,125 @@ export function ImportHistory() {
         details: err instanceof Error ? err.stack : undefined,
         timestamp: new Date().toISOString(),
       });
-      console.error('History fetch error:', err);
+      logger.import.error('History fetch error', err);
     } finally {
       setLoading(false);
     }
   };
+
+  const fetchErrors = async (batchId: string, pageNum = 1, reset = false) => {
+    try {
+      setErrorLoading(true);
+      setErrorFetchError(null);
+      setCurrentErrorPage(pageNum);
+
+      const params = new URLSearchParams({
+        page: pageNum.toString(),
+        limit: '50',
+      });
+
+      const response = await fetch(`/api/import/${batchId}/errors?${params}`);
+      const result = await response.json();
+
+      if (!result.success) {
+        setErrorFetchError(result.error || 'Failed to fetch errors');
+        return;
+      }
+
+      if (reset) {
+        setErrors(result.data.errors);
+      } else {
+        setErrors(prev => [...prev, ...result.data.errors]);
+      }
+
+      setTotalErrors(result.data.total);
+      setSelectedBatch(result.data.batchSummary);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch errors';
+      setErrorFetchError(errorMessage);
+      logger.import.error('Errors fetch error', err);
+    } finally {
+      setErrorLoading(false);
+    }
+  };
+
+  const handleViewErrors = async (batch: ImportBatch) => {
+    setSelectedBatch(batch);
+    setCurrentErrorPage(1);
+    await fetchErrors(batch.id, 1, true);
+    setShowErrorModal(true);
+  };
+
+  const handleErrorPageChange = (newPage: number) => {
+    if (selectedBatch) {
+      fetchErrors(selectedBatch.id, newPage, true);
+    }
+  };
+
+  // Optional: Generate summary
+  const generateErrorSummary = () => {
+    if (!errors.length) return '';
+
+    const errorCounts = errors.reduce((acc: Record<string, number>, error: any) => {
+      const type = error.errorType || 'unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const total = errors.length;
+    const sorted = Object.entries(errorCounts).sort(([,a], [,b]) => Number(b) - Number(a));
+    const topIssues = sorted.slice(0, 2).map(([type, count]) => `${type} (${Math.round((Number(count) / total) * 100)}%)`).join(', ');
+
+    return `${total} failures found - Top issues: ${topIssues}`;
+  };
+
+  const errorSummary = generateErrorSummary();
+
+  // Handle close modal
+  const handleCloseModal = () => {
+    setShowErrorModal(false);
+    setErrors([]);
+    setTotalErrors(0);
+    setErrorFetchError(null);
+    setCurrentErrorPage(1);
+  };
+
+  const totalPages = Math.ceil(totalErrors / 50);
+
+  // Badge variant for severity
+  const getSeverityVariant = (severity: string) => {
+    switch (severity?.toLowerCase()) {
+      case 'error':
+        return 'destructive';
+      case 'warning':
+        return 'secondary';
+      default:
+        return 'default';
+    }
+  };
+
+  const getErrorTypeVariant = (errorType: string) => {
+    // Customize based on error type if needed
+    return 'default' as const;
+  };
+
+  // Reset error page when filter changes or search
+  useEffect(() => {
+    if (statusFilter !== 'all' || searchTerm) {
+      setCurrentErrorPage(1);
+    }
+  }, [statusFilter, searchTerm]);
+
+  // Reset modal when batch changes
+  useEffect(() => {
+    if (!showErrorModal) {
+      setSelectedBatch(null);
+      setErrors([]);
+      setTotalErrors(0);
+      setErrorFetchError(null);
+      setCurrentErrorPage(1);
+    }
+  }, [showErrorModal]);
 
   useEffect(() => {
     fetchHistory(1, true);
@@ -149,7 +276,7 @@ export function ImportHistory() {
       }
       return date.toLocaleString();
     } catch (error) {
-      console.error('Date formatting error:', error);
+      logger.import.error('Date formatting error', error);
       return 'Invalid Date';
     }
   };

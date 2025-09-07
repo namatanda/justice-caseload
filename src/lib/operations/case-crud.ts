@@ -1,6 +1,7 @@
 import { Prisma, Case, CaseActivity, CaseStatus } from '@prisma/client';
 import { prisma, withTransaction, PrismaTransaction } from '../database';
 import { cacheManager } from '../database/redis';
+import { logger } from '@/lib/logger';
 import { 
   CreateCaseSchema, 
   UpdateCaseSchema, 
@@ -59,8 +60,36 @@ export async function createCase(
   try {
     const validatedData = CreateCaseSchema.parse(caseData);
     
+    // Create parties JSON object from individual count fields
+    const parties = {
+      maleApplicant: validatedData.maleApplicant,
+      femaleApplicant: validatedData.femaleApplicant,
+      organizationApplicant: validatedData.organizationApplicant,
+      maleDefendant: validatedData.maleDefendant,
+      femaleDefendant: validatedData.femaleDefendant,
+      organizationDefendant: validatedData.organizationDefendant,
+    };
+    
     const newCase = await prisma.case.create({
-      data: validatedData,
+      data: {
+        caseNumber: validatedData.caseNumber,
+        caseTypeId: validatedData.caseTypeId,
+        filedDate: validatedData.filedDate,
+        originalCourtId: validatedData.originalCourtId,
+        originalCaseNumber: validatedData.originalCaseNumber,
+        originalYear: validatedData.originalYear,
+        caseidType: validatedData.caseidType,
+        caseidNo: validatedData.caseidNo,
+        status: validatedData.status,
+        hasLegalRepresentation: validatedData.hasLegalRepresentation,
+        maleApplicant: validatedData.maleApplicant,
+        femaleApplicant: validatedData.femaleApplicant,
+        organizationApplicant: validatedData.organizationApplicant,
+        maleDefendant: validatedData.maleDefendant,
+        femaleDefendant: validatedData.femaleDefendant,
+        organizationDefendant: validatedData.organizationDefendant,
+        parties,
+      },
     });
     
     // Invalidate cache
@@ -142,7 +171,7 @@ export async function getCaseById(caseId: string): Promise<CaseDetails | null> {
     
     return caseRecord as CaseDetails | null;
   } catch (error) {
-    console.error('Error fetching case:', error);
+    logger.database.error('Error fetching case', { caseId, error });
     return null;
   }
 }
@@ -247,7 +276,7 @@ export async function getCasesPaginated({
       nextCursor,
     };
   } catch (error) {
-    console.error('Error fetching paginated cases:', error);
+    logger.database.error('Error fetching paginated cases', { error });
     throw new Error('Failed to fetch cases');
   }
 }
@@ -306,7 +335,7 @@ export async function searchCases(searchParams: any): Promise<PaginatedCases> {
       sortOrder: pagination?.sortOrder,
     });
   } catch (error) {
-    console.error('Error searching cases:', error);
+    logger.database.error('Error searching cases', { error });
     throw new Error('Failed to search cases');
   }
 }
@@ -509,7 +538,7 @@ export async function getCaseStatistics(): Promise<{
     }, {} as Record<string, number>);
     
     return {
-      totalCases: Object.values(stats).reduce((sum, count) => sum + count, 0),
+      totalCases: Object.values(stats).reduce((sum: number, count: number) => sum + count, 0),
       activeCases: stats.ACTIVE || 0,
       resolvedCases: stats.RESOLVED || 0,
       pendingCases: stats.PENDING || 0,
@@ -518,7 +547,7 @@ export async function getCaseStatistics(): Promise<{
       averageCaseAge: Math.round(avgAge._avg.caseAgeDays || 0),
     };
   } catch (error) {
-    console.error('Error fetching case statistics:', error);
+    logger.database.error('Error fetching case statistics', { error });
     throw new Error('Failed to fetch case statistics');
   }
 }
@@ -543,7 +572,7 @@ export async function getRecentCases(limit: number = 10): Promise<Array<Case & {
       },
     }) as any;
   } catch (error) {
-    console.error('Error fetching recent cases:', error);
+    logger.database.error('Error fetching recent cases', { error });
     throw new Error('Failed to fetch recent cases');
   }
 }

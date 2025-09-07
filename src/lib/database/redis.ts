@@ -1,4 +1,5 @@
 import { Redis } from 'ioredis';
+import logger from '@/lib/logger';
 import { Queue, Worker, Job } from 'bullmq';
 
 // Redis connection configuration
@@ -21,7 +22,7 @@ function parseRedisUrl(redisUrl?: string) {
       db: parseInt(url.pathname.slice(1)) || 0,
     };
   } catch (error) {
-    console.warn('Invalid REDIS_URL format, falling back to localhost');
+    logger.database.warn('Invalid REDIS_URL format, falling back to localhost');
     return {
       host: 'localhost',
       port: 6379,
@@ -157,7 +158,7 @@ export async function checkRedisConnection(): Promise<boolean> {
     await redis.ping();
     return true;
   } catch (error) {
-    console.error('Redis connection failed:', error);
+    logger.database.error('Redis connection failed', error);
     return false;
   }
 }
@@ -165,23 +166,23 @@ export async function checkRedisConnection(): Promise<boolean> {
 // Initialize queue workers (call this when the app starts)
 export async function initializeQueueWorkers(): Promise<void> {
   try {
-    console.log('🔄 Initializing queue workers...');
+    logger.database.info('Initializing queue workers');
 
     // Test Redis connection
     const isRedisConnected = await checkRedisConnection();
     if (!isRedisConnected) {
-      console.error('❌ Redis connection failed - queue workers will not function');
+      logger.database.error('Redis connection failed - queue workers will not function');
       return;
     }
 
     // Import and initialize workers dynamically to avoid issues during build
     const { csvImportWorker, analyticsWorker } = await import('../import/queue-worker');
 
-    console.log('✅ Queue workers initialized successfully');
+    logger.database.info('Queue workers initialized successfully');
 
     // Set up graceful shutdown
     process.on('SIGTERM', async () => {
-      console.log('🛑 Received SIGTERM, shutting down workers...');
+      logger.database.info('Received SIGTERM, shutting down workers');
       await Promise.all([
         csvImportWorker.close(),
         analyticsWorker.close(),
@@ -190,7 +191,7 @@ export async function initializeQueueWorkers(): Promise<void> {
     });
 
     process.on('SIGINT', async () => {
-      console.log('🛑 Received SIGINT, shutting down workers...');
+      logger.database.info('Received SIGINT, shutting down workers');
       await Promise.all([
         csvImportWorker.close(),
         analyticsWorker.close(),
@@ -199,7 +200,7 @@ export async function initializeQueueWorkers(): Promise<void> {
     });
 
   } catch (error) {
-    console.error('❌ Failed to initialize queue workers:', error);
+    logger.database.error('Failed to initialize queue workers', error);
   }
 }
 

@@ -1,4 +1,14 @@
 // Database connection and utilities
+import { logger } from '@/lib/logger';
+import { 
+  checkDatabaseConnection,
+  disconnectDatabase
+} from './prisma';
+import {
+  checkRedisConnection,
+  disconnectRedis
+} from './redis';
+
 export { 
   prisma as default,
   prisma,
@@ -72,12 +82,12 @@ export async function checkSystemHealth(): Promise<{
 
 // Graceful shutdown for all connections
 export async function gracefulShutdown(): Promise<void> {
-  console.log('Starting graceful shutdown...');
+  logger.system.info('Starting graceful database shutdown');
   
   await Promise.all([
     disconnectDatabase(),
     disconnectRedis(),
   ]);
   
-  console.log('Graceful shutdown completed');
+  logger.system.info('Graceful shutdown completed');
 }

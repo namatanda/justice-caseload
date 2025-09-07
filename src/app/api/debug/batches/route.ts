@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/database/prisma';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
   try {
@@ -24,7 +25,7 @@ export async function GET() {
       count: batches.length
     });
   } catch (error) {
-    console.error('Error fetching batches:', error);
+    logger.error('general', 'Error fetching batches:', error);
     return NextResponse.json(
       {
         success: false,

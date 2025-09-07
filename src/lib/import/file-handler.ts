@@ -353,13 +353,29 @@ export async function validateCsvStructure(filePath: string): Promise<{
           const missingColumns = requiredColumns.filter(col =>
             !trimmedHeaders.some(header => header.toLowerCase() === col.toLowerCase())
           );
-
+          
           if (missingColumns.length > 0) {
             errors.push({
               type: 'structure',
               severity: 'error',
               message: `Missing ${missingColumns.length} required column(s): ${missingColumns.join(', ')}`,
               suggestion: 'Ensure all required columns are present in the CSV file. Check the column headers match exactly.',
+              field: 'headers'
+            });
+          }
+          
+          // Explicitly check optional next hearing date columns
+          const optionalNextHearingColumns = ['next_dd', 'next_mon', 'next_yyyy'];
+          const presentNextHearingColumns = optionalNextHearingColumns.filter(col =>
+            trimmedHeaders.some(header => header.toLowerCase() === col.toLowerCase())
+          );
+          
+          if (presentNextHearingColumns.length > 0 && presentNextHearingColumns.length < optionalNextHearingColumns.length) {
+            warnings.push({
+              type: 'structure',
+              severity: 'warning',
+              message: `Partially present next hearing date columns: ${presentNextHearingColumns.join(', ')}. All three (next_dd, next_mon, next_yyyy) should be included or none for consistency.`,
+              suggestion: 'Either include all next hearing date columns or remove them entirely. Partial presence may lead to validation issues.',
               field: 'headers'
             });
           }

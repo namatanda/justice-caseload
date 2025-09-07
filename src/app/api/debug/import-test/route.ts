@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processCsvImport } from '@/lib/import/csv-processor';
 import type { ImportJobData } from '@/lib/database/redis';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🧪 DEBUG ENDPOINT: Starting import test');
+    logger.info('general', '🧪 DEBUG ENDPOINT: Starting import test');
     
     const body = await request.json();
     const { batchId } = body;
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log('🧪 DEBUG ENDPOINT: Testing import for batch:', batchId);
+    logger.info('general', '🧪 DEBUG ENDPOINT: Testing import for batch:', batchId);
     
     // Get batch info from database
     const { prisma } = await import('@/lib/database');
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log('🧪 DEBUG ENDPOINT: Found batch:', JSON.stringify(batch, null, 2));
+    logger.api.info('DEBUG ENDPOINT: Found batch', batch);
     
     // Create mock job data for testing
     const mockJobData: ImportJobData = {
@@ -44,14 +45,14 @@ export async function POST(request: NextRequest) {
       batchId: batch.id,
     };
     
-    console.log('🧪 DEBUG ENDPOINT: Mock job data:', JSON.stringify(mockJobData, null, 2));
+    logger.api.info('DEBUG ENDPOINT: Mock job data', mockJobData);
     
     // Try to process (this will likely fail but give us debug info)
     try {
       await processCsvImport(mockJobData);
-      console.log('🧪 DEBUG ENDPOINT: Import processing completed successfully');
+      logger.info('general', '🧪 DEBUG ENDPOINT: Import processing completed successfully');
     } catch (error) {
-      console.error('🧪 DEBUG ENDPOINT: Import processing failed:', error);
+      logger.error('general', '🧪 DEBUG ENDPOINT: Import processing failed:', error);
       return NextResponse.json({
         success: false,
         error: 'Import processing failed (expected for debug)',
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('🧪 DEBUG ENDPOINT: Error:', error);
+    logger.error('general', '🧪 DEBUG ENDPOINT: Error:', error);
     return NextResponse.json(
       {
         success: false,

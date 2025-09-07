@@ -1,0 +1,94 @@
+#!/usr/bin/env tsx
+
+/**
+ * Test Batch Creation
+ * 
+ * This script creates a minimal import batch to see if it persists
+ */
+
+import { prisma } from '../src/lib/database';
+import { getOrCreateSystemUser } from '../src/lib/import/csv-processor';
+
+async function testBatchCreation() {
+  console.log('🧪 Testing batch creation and persistence...');
+  
+  try {
+    // Check initial state
+    console.log('\n1. Checking initial state...');
+    const initialCounts = {
+      users: await prisma.user.count(),
+      batches: await prisma.dailyImportBatch.count(),
+      cases: await prisma.case.count(),
+      activities: await prisma.caseActivity.count(),
+    };
+    console.log('   Initial counts:', initialCounts);
+    
+    // Create a user
+    console.log('\n2. Creating system user...');
+    const userId = await getOrCreateSystemUser();
+    console.log('   Created user ID:', userId);
+    
+    // Create a batch
+    console.log('\n3. Creating import batch...');
+    const batch = await prisma.dailyImportBatch.create({
+      data: {
+        importDate: new Date(),
+        filename: 'test-batch.csv',
+        fileSize: 1024,
+        fileChecksum: 'test-checksum-' + Date.now(),
+        totalRecords: 0,
+        successfulRecords: 0,
+        failedRecords: 0,
+        errorLogs: [],
+        status: 'PENDING',
+        createdBy: userId,
+      },
+    });
+    console.log('   Created batch:', batch.id);
+    
+    // Wait a moment
+    console.log('\n4. Waiting 2 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Check if batch still exists
+    console.log('\n5. Checking batch persistence...');
+    const foundBatch = await prisma.dailyImportBatch.findUnique({
+      where: { id: batch.id }
+    });
+    
+    if (foundBatch) {
+      console.log('✅ Batch still exists:', foundBatch.filename);
+    } else {
+      console.log('❌ Batch disappeared!');
+    }
+    
+    // Check final counts
+    console.log('\n6. Checking final state...');
+    const finalCounts = {
+      users: await prisma.user.count(),
+      batches: await prisma.dailyImportBatch.count(),
+      cases: await prisma.case.count(),
+      activities: await prisma.caseActivity.count(),
+    };
+    console.log('   Final counts:', finalCounts);
+    
+    // Compare
+    console.log('\n📊 Changes:');
+    console.log('   Users:', finalCounts.users - initialCounts.users);
+    console.log('   Batches:', finalCounts.batches - initialCounts.batches);
+    console.log('   Cases:', finalCounts.cases - initialCounts.cases);
+    console.log('   Activities:', finalCounts.activities - initialCounts.activities);
+    
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+    throw error;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (require.main === module) {
+  testBatchCreation().catch(console.error);
+}
+
+export { testBatchCreation };

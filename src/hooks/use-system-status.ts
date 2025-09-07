@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 
 interface SystemStatus {
   redis: {
@@ -59,7 +60,7 @@ export function useSystemStatus(): SystemStatus {
           
           setWorkersLastChecked(new Date());
         } catch (error) {
-          console.error('Failed to check worker status:', error);
+          logger.api.error('Failed to check worker status', { error });
           setWorkersStatus('inactive');
           setWorkersLastChecked(new Date());
         }
@@ -68,7 +69,7 @@ export function useSystemStatus(): SystemStatus {
         setWorkersLastChecked(new Date());
       }
     } catch (error) {
-      console.error('Failed to check Redis status:', error);
+      logger.api.error('Failed to check Redis status', { error });
       setRedisStatus('disconnected');
       setRedisLastChecked(new Date());
       setWorkersStatus('inactive');

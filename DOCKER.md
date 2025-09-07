@@ -178,3 +178,10 @@ docker-compose ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 # Remove unused containers and images
 docker system prune -a
 ```
+
+# DROP DATABASE
+docker exec -it justice-caseload-database-1 psql -h localhost -p 5432 -U fiend -d postgres -c "DROP DATABASE IF EXISTS caseload;"
+# CREATE DATABASE
+docker exec -it justice-caseload-database-1 psql -h localhost -p 5432 -U fiend -d postgres -c "CREATE DATABASE caseload;"
+docker-compose restart database
+
