@@ -82,7 +82,6 @@ model Case {
   originalYear           Int?       @map("original_year")
   parties                Json
   status                 String     @default("ACTIVE")
-  caseAgeDays            Int        @default(0) @map("case_age_days")
   lastActivityDate       DateTime?  @map("last_activity_date")
   totalActivities        Int        @default(0) @map("total_activities")
   hasLegalRepresentation Boolean    @default(false) @map("has_legal_representation")

@@ -192,7 +192,6 @@ describe('Database Schema Tests', () => {
         defendants: { maleCount: 0, femaleCount: 1, organizationCount: 0 },
       });
       expect(testCase.status).toBe('ACTIVE');
-      expect(testCase.caseAgeDays).toBe(0);
       expect(testCase.totalActivities).toBe(0);
       expect(testCase.hasLegalRepresentation).toBe(false);
       expect(testCase.createdAt).toBeInstanceOf(Date);

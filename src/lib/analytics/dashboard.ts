@@ -3,6 +3,18 @@ import { prisma } from '../database';
 import { cacheManager } from '../database/redis';
 import { AnalyticsFiltersSchema } from '../validation/schemas';
 
+// Helper function to calculate case age in days from filed date
+function calculateAverageCaseAge(cases: { filedDate: Date }[]): number {
+  if (!cases || cases.length === 0) return 0;
+  
+  const totalDays = cases.reduce((sum, case_) => {
+    const days = Math.floor((Date.now() - case_.filedDate.getTime()) / (1000 * 60 * 60 * 24));
+    return sum + Math.max(0, days); // Ensure non-negative days
+  }, 0);
+  
+  return totalDays / cases.length;
+}
+
 // Dashboard analytics interfaces
 export interface DashboardAnalytics {
   totalCases: number;
@@ -110,10 +122,10 @@ export async function getDashboardAnalytics(
         _count: { id: true },
       }),
       
-      // Case age statistics
-      prisma.case.aggregate({
+      // Case age statistics - get filed dates to calculate dynamically
+      prisma.case.findMany({
         where: whereClause,
-        _avg: { caseAgeDays: true },
+        select: { filedDate: true },
       }),
       
       // Cases by type
@@ -169,7 +181,7 @@ export async function getDashboardAnalytics(
       pendingCases,
       transferredCases,
       clearanceRate: Math.round(clearanceRate * 100) / 100,
-      averageCaseAge: Math.round(caseAgeStats._avg.caseAgeDays || 0),
+      averageCaseAge: Math.round(calculateAverageCaseAge(caseAgeStats) || 0),
       caseAgeDistribution,
       casesByType: caseTypeDetails,
       casesByStatus: casesByStatusWithPercentage,
@@ -194,7 +206,7 @@ async function getCaseAgeDistribution(
 ): Promise<Record<string, number>> {
   const cases = await prisma.case.findMany({
     where: whereClause,
-    select: { caseAgeDays: true },
+    select: { filedDate: true },
   });
   
   const distribution = {
@@ -206,7 +218,7 @@ async function getCaseAgeDistribution(
   };
   
   cases.forEach(case_ => {
-    const age = case_.caseAgeDays;
+    const age = Math.floor((Date.now() - case_.filedDate.getTime()) / (1000 * 60 * 60 * 24));
     if (age <= 30) distribution['0-30 days']++;
     else if (age <= 90) distribution['31-90 days']++;
     else if (age <= 180) distribution['91-180 days']++;
@@ -438,7 +450,6 @@ export async function getCourtAnalytics(courtId?: string): Promise<CourtAnalytic
         select: {
           id: true,
           status: true,
-          caseAgeDays: true,
           filedDate: true,
         },
       },
@@ -453,7 +464,7 @@ export async function getCourtAnalytics(courtId?: string): Promise<CourtAnalytic
     const activeCases = cases.filter(c => c.status === 'ACTIVE').length;
     const resolvedCases = cases.filter(c => c.status === 'RESOLVED').length;
     const averageCaseAge = cases.length > 0 
-      ? Math.round(cases.reduce((sum, c) => sum + c.caseAgeDays, 0) / cases.length)
+      ? Math.round(cases.reduce((sum, c) => sum + Math.floor((Date.now() - c.filedDate.getTime()) / (1000 * 60 * 60 * 24)), 0) / cases.length)
       : 0;
     const clearanceRate = totalCases > 0 ? (resolvedCases / totalCases) * 100 : 0;
     

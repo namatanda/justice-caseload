@@ -184,9 +184,6 @@ async function seedDatabase() {
       const filedDate = randomDate(new Date(2023, 0, 1), new Date());
       const caseNumber = generateCaseNumber(caseType.caseTypeCode, filedDate.getFullYear());
       
-      // Calculate case age
-      const caseAgeDays = Math.floor((Date.now() - filedDate.getTime()) / (1000 * 60 * 60 * 24));
-      
       // Generate party counts
       const parties = {
         applicants: {
@@ -226,7 +223,6 @@ async function seedDatabase() {
           originalCourtId: Math.random() > 0.7 ? court.id : undefined, // 30% have original court
           parties,
           status,
-          caseAgeDays,
           hasLegalRepresentation: Math.random() > 0.3, // 70% have legal rep
         },
       });

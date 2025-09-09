@@ -190,6 +190,7 @@ npx prisma db pull
 npx prisma validate
 npx prisma migrate reset
 npx prisma migrate reset --force
+npx prisma migrate deploy
 npx prisma migrate dev --name remove_original_court_relation 
 #
 Remove-Item -Recurse -Force node_modules\.prisma\client -ErrorAction SilentlyContinue
@@ -197,3 +198,18 @@ npx prisma migrate dev --name init-fresh-schema
 npx prisma generate --schema=prisma/schema.test.prisma 
 
 # npx tsc --noEmit --skipLibCheck src/lib/csv/batch-service.ts
+
+type prisma\migrations\20250907171632_init_fresh_schema\migration.sql | docker exec -i justice-caseload-database-1 psql -h 127.0.0.1 -p 5432 -U fiend -d caseload
+docker exec justice-caseload-database-1 psql -h 127.0.0.1 -p 5432 -U fiend -d caseload -c "CREATE TABLE IF NOT EXISTS _prisma_migrations (...)"
+docker exec justice-caseload-database-1 psql -h 127.0.0.1 -p 5432 -U fiend -d caseload -c "INSERT INTO _prisma_migrations (...)"
+docker exec justice-caseload-database-1 psql -U fiend -d caseload -c "SELECT full_name, first_name, last_name FROM judges WHERE full_name = 'Hon. Justice Mary Kasango';" 9k q   oi
+docker exec justice-caseload-database-1 psql -U fiend -d caseload -c "SELECT court_name, court_code, court_type FROM courts WHERE court_name = 'Nairobi High Court';"
+docker exec justice-caseload-database-1 psql -U fiend -d caseload -c "SELECT case_type_name, case_type_code FROM case_types WHERE case_type_name = 'Commercial Matters Test';"          
+
+
+. Remove caseAgeDays from the Prisma schema
+   2. Remove all references to caseAgeDays in the database operations
+   3. Modify the CRUD and reporting logic to calculate case age dynamically
+   4. Update the seed script to not include caseAgeDays
+   5. Update analytics/dashboard to calculate case age dynamically
+   

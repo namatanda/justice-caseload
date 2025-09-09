@@ -12,6 +12,18 @@ import {
   CaseSearchSchema
 } from '../validation/schemas';
 
+// Helper function to calculate average case age from filed dates
+function calculateAverageCaseAge(cases: { filedDate: Date }[]): number {
+  if (!cases || cases.length === 0) return 0;
+  
+  const totalDays = cases.reduce((sum, case_) => {
+    const days = Math.floor((Date.now() - case_.filedDate.getTime()) / (1000 * 60 * 60 * 24));
+    return sum + Math.max(0, days); // Ensure non-negative days
+  }, 0);
+  
+  return totalDays / cases.length;
+}
+
 // Interfaces
 export interface PaginatedCases {
   cases: Array<Case & {
@@ -542,16 +554,23 @@ export async function getCaseStatistics(): Promise<{
   averageCaseAge: number;
 }> {
   try {
-    const [statusCounts, avgAge] = await Promise.all([
+    const [statusCounts, casesForAvg] = await Promise.all([
       prisma.case.groupBy({
         by: ['status'],
         _count: { id: true },
       }),
-      prisma.case.aggregate({
-        _avg: { caseAgeDays: true },
+      prisma.case.findMany({
         where: { status: { not: 'DELETED' } },
+        select: { filedDate: true },
       }),
     ]);
+    
+    // Calculate average case age dynamically
+    const avgAge = {
+      _avg: {
+        caseAge: calculateAverageCaseAge(casesForAvg)
+      }
+    };
     
     const stats = statusCounts.reduce((acc, item) => {
       acc[item.status] = item._count.id;
@@ -565,7 +584,7 @@ export async function getCaseStatistics(): Promise<{
       pendingCases: stats.PENDING || 0,
       transferredCases: stats.TRANSFERRED || 0,
       deletedCases: stats.DELETED || 0,
-      averageCaseAge: Math.round(avgAge._avg.caseAgeDays || 0),
+      averageCaseAge: Math.round(avgAge._avg.caseAge || 0),
     };
   } catch (error) {
     logger.database.error('Error fetching case statistics', { error });

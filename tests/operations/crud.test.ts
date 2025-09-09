@@ -237,7 +237,6 @@ describe('CRUD Operations Tests', () => {
               defendants: { maleCount: 0, femaleCount: 1, organizationCount: 0 },
             },
             status,
-            caseAgeDays: 30,
           },
         });
       }

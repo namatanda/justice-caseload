@@ -247,7 +247,6 @@ class CaseServiceImpl implements CaseService {
     const updateData = {
       lastActivityDate: new Date(),
       totalActivities: { increment: 1 },
-      caseAgeDays: Math.floor((Date.now() - filedDate.getTime()) / (1000 * 60 * 60 * 24)),
       hasLegalRepresentation: row.legalrep === 'Yes',
     };
 
@@ -349,7 +348,6 @@ class CaseServiceImpl implements CaseService {
       caseidType: row.caseid_type || '',
       caseidNo: row.caseid_no || '',
       status: 'ACTIVE' as const,
-      caseAgeDays: Math.floor((Date.now() - filedDate.getTime()) / (1000 * 60 * 60 * 24)),
       lastActivityDate: new Date(),
       totalActivities: 1,
       hasLegalRepresentation: row.legalrep === 'Yes',
