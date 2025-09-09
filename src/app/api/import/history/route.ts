@@ -21,8 +21,15 @@ export async function GET(request: NextRequest) {
     // Get import history with filters
     const history = await importService.getImportHistory(limit);
 
+    // Always ensure actualDataRows and emptyRowsSkipped are present
+    const historyWithActuals = history.map(item => ({
+      ...item,
+      actualDataRows: typeof item.actualDataRows === 'number' ? item.actualDataRows : (item.totalRecords - (item.emptyRowsSkipped || 0)),
+      emptyRowsSkipped: typeof item.emptyRowsSkipped === 'number' ? item.emptyRowsSkipped : 0,
+    }));
+
     // Apply client-side filtering (in a real app, you'd do this in the database)
-    let filteredHistory = history;
+    let filteredHistory = historyWithActuals;
 
     if (status) {
       filteredHistory = filteredHistory.filter(item => item.status === status);
@@ -31,14 +38,14 @@ export async function GET(request: NextRequest) {
     if (startDate) {
       const start = new Date(startDate);
       filteredHistory = filteredHistory.filter(item =>
-        new Date(item.createdAt) >= start
+        new Date(item.importDate) >= start
       );
     }
 
     if (endDate) {
       const end = new Date(endDate);
       filteredHistory = filteredHistory.filter(item =>
-        new Date(item.createdAt) <= end
+        new Date(item.importDate) <= end
       );
     }
 

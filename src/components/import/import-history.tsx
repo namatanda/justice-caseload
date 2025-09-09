@@ -29,7 +29,14 @@ interface ImportBatch {
   id: string;
   filename: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  // totalRecords includes data rows + empty rows
   totalRecords: number;
+  // actualDataRows excludes empty rows (what we should show to the user)
+  actualDataRows?: number;
+  // count of empty rows skipped during parsing
+  emptyRowsSkipped?: number;
+  // count of duplicate rows skipped during persistence
+  duplicatesSkipped?: number;
   successfulRecords: number;
   failedRecords: number;
   createdAt: string;
@@ -38,6 +45,8 @@ interface ImportBatch {
     name: string;
     email: string;
   };
+  failureReason?: string;
+  failureCategory?: string;
 }
 
 export function ImportHistory() {
@@ -367,6 +376,9 @@ export function ImportHistory() {
                     <TableHead>Created</TableHead>
                     <TableHead>Completed</TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Duplicates Skipped</TableHead>
+                    <TableHead>Failure Reason</TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Debug</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -388,30 +400,72 @@ export function ImportHistory() {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <div>Total: {batch.totalRecords}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Success: {batch.successfulRecords} | Failed: {batch.failedRecords}
+                          <div>
+                            Total: {typeof batch.actualDataRows === 'number' ? batch.actualDataRows : batch.totalRecords}
+                            {typeof batch.emptyRowsSkipped === 'number' && batch.emptyRowsSkipped > 0 && (
+                              <span className="text-xs text-muted-foreground ml-2">(Skipped {batch.emptyRowsSkipped} empty)</span>
+                            )}
                           </div>
+                          <div className="text-xs text-muted-foreground">
+                            Success (persisted): {batch.successfulRecords} | Failed: {batch.failedRecords}
+                          </div>
+                          {/* Warning for completed but zero actual data rows */}
+                          {batch.status === 'COMPLETED' && (typeof batch.actualDataRows === 'number' ? batch.actualDataRows : batch.totalRecords) === 0 && batch.successfulRecords === 0 && (
+                            <div className="text-xs text-red-600 mt-1">Warning: Completed but no data rows imported</div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        {batch.totalRecords > 0 ? (
+                        {/* Duplicates skipped reporting (if available) */}
+                        {typeof batch.duplicatesSkipped === 'number' ? batch.duplicatesSkipped : <span className="text-muted-foreground">-</span>}
+                      </TableCell>
+                      <TableCell>
+                        {batch.status === 'FAILED' && batch.failureReason ? (
+                          <div className="max-w-48">
+                            <div className="text-xs text-red-600 truncate" title={batch.failureReason}>
+                              {batch.failureReason}
+                            </div>
+                            {batch.failureCategory && (
+                              <div className="text-xs text-muted-foreground">
+                                {batch.failureCategory}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {(typeof batch.actualDataRows === 'number' ? batch.actualDataRows : batch.totalRecords) > 0 ? (
                           <div className="flex items-center gap-2">
                             <div className="w-16 bg-muted rounded-full h-2">
                               <div
                                 className="bg-green-600 h-2 rounded-full"
                                 style={{
-                                  width: `${(batch.successfulRecords / batch.totalRecords) * 100}%`
+                                  width: `${(batch.successfulRecords / (typeof batch.actualDataRows === 'number' ? batch.actualDataRows : batch.totalRecords)) * 100}%`
                                 }}
                               />
                             </div>
                             <span className="text-xs">
-                              {Math.round((batch.successfulRecords / batch.totalRecords) * 100)}%
+                              {Math.round((batch.successfulRecords / (typeof batch.actualDataRows === 'number' ? batch.actualDataRows : batch.totalRecords)) * 100)}%
                             </span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {/* Debug info for backend values */}
+                        <pre style={{ fontSize: '10px', background: '#f9f9f9', padding: '2px', borderRadius: '2px', maxWidth: '180px', overflowX: 'auto' }}>
+                          {JSON.stringify({
+                            totalRecords: batch.totalRecords,
+                            actualDataRows: batch.actualDataRows,
+                            emptyRowsSkipped: batch.emptyRowsSkipped,
+                            successfulRecords: batch.successfulRecords,
+                            failedRecords: batch.failedRecords,
+                            status: batch.status
+                          }, null, 2)}
+                        </pre>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {formatDate(batch.createdAt)}
@@ -482,11 +536,17 @@ export function ImportHistory() {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
-                  {batches.reduce((sum, b) => sum + b.successfulRecords, 0).toLocaleString()}
+                  {batches.reduce((sum, b) => sum + (b.successfulRecords || 0), 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-muted-foreground">Total Records Imported</div>
               </div>
             </div>
+            {/* Optional contextual note when some completed imports have zero data rows */}
+            {batches.some(b => b.status === 'COMPLETED' && (b.actualDataRows ?? b.totalRecords) === 0) && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Note: Some completed imports show zero data rows because the file contained only headers or empty lines. These are marked completed with no records imported.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

@@ -12,18 +12,30 @@ export interface EmptyRowConfig {
   treatNullAsEmpty: boolean;
   treatUndefinedAsEmpty: boolean;
   customEmptyValues: string[];
+  treatMissingCriticalFieldsAsEmpty: boolean;
+  criticalFields: string[];
 }
 
 export interface EmptyRowStats {
   totalEmptyRows: number;
   emptyRowNumbers: number[];
+  criticalFieldsMissingRows: number;
+  criticalFieldsMissingRowNumbers: number[];
 }
 
 export const DEFAULT_EMPTY_ROW_CONFIG: EmptyRowConfig = {
   trimWhitespace: true,
   treatNullAsEmpty: true,
   treatUndefinedAsEmpty: true,
-  customEmptyValues: ['', 'N/A', 'NULL', 'null', '-', 'n/a']
+  customEmptyValues: ['', 'N/A', 'NULL', 'null', '-', 'n/a'],
+  treatMissingCriticalFieldsAsEmpty: true,
+  criticalFields: [
+    'date_dd', 'date_mon', 'date_yyyy', // Activity date (required)
+    'caseid_type', 'caseid_no', // Case identification (required)
+    'filed_dd', 'filed_mon', 'filed_yyyy', // Filing information (required)
+    'court', // Court information (required)
+    'case_type', 'judge_1' // Case details (required)
+  ]
 };
 
 /**
@@ -37,7 +49,9 @@ export class EmptyRowDetector {
     this.config = config;
     this.stats = {
       totalEmptyRows: 0,
-      emptyRowNumbers: []
+      emptyRowNumbers: [],
+      criticalFieldsMissingRows: 0,
+      criticalFieldsMissingRowNumbers: []
     };
   }
 
@@ -89,9 +103,19 @@ export class EmptyRowDetector {
     
     if (allFieldsEmpty) {
       this.trackEmptyRow(rowNumber);
+      return true;
     }
 
-    return allFieldsEmpty;
+    // Check if critical fields are missing (treat as effectively empty)
+    if (this.config.treatMissingCriticalFieldsAsEmpty) {
+      const missingCriticalFields = this.getMissingCriticalFields(row);
+      if (missingCriticalFields.length > 0) {
+        this.trackCriticalFieldsMissingRow(rowNumber);
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -106,13 +130,62 @@ export class EmptyRowDetector {
   }
 
   /**
+   * Track critical fields missing row statistics
+   * @param rowNumber Optional row number to track
+   */
+  private trackCriticalFieldsMissingRow(rowNumber?: number): void {
+    this.stats.criticalFieldsMissingRows++;
+    this.stats.totalEmptyRows++; // Also count as total empty row
+    if (rowNumber !== undefined) {
+      this.stats.criticalFieldsMissingRowNumbers.push(rowNumber);
+    }
+  }
+
+  /**
+   * Check if critical fields are missing in a row
+   * @param row The CSV row to check
+   * @returns true if any critical fields are missing/empty
+   */
+  isCriticalFieldsMissing(row: CsvRow): boolean {
+    if (!this.config.treatMissingCriticalFieldsAsEmpty) {
+      return false;
+    }
+    
+    const missingFields = this.getMissingCriticalFields(row);
+    return missingFields.length > 0;
+  }
+
+  /**
+   * Get list of missing critical fields in a row
+   * @param row The CSV row to check
+   * @returns Array of missing critical field names
+   */
+  getMissingCriticalFields(row: CsvRow): string[] {
+    const missingFields: string[] = [];
+
+    for (const field of this.config.criticalFields) {
+      // Only check fields that actually exist in the row
+      if (field in row) {
+        const value = row[field];
+        if (this.isEmptyField(value)) {
+          missingFields.push(field);
+        }
+      }
+    }
+
+    return missingFields;
+  }
+
+  /**
    * Get current empty row statistics
    * @returns Current statistics about empty rows encountered
    */
   getEmptyRowStats(): EmptyRowStats {
     return {
       totalEmptyRows: this.stats.totalEmptyRows,
-      emptyRowNumbers: [...this.stats.emptyRowNumbers]
+      emptyRowNumbers: [...this.stats.emptyRowNumbers],
+      criticalFieldsMissingRows: this.stats.criticalFieldsMissingRows,
+      criticalFieldsMissingRowNumbers: [...this.stats.criticalFieldsMissingRowNumbers]
     };
   }
 
@@ -122,7 +195,9 @@ export class EmptyRowDetector {
   resetStats(): void {
     this.stats = {
       totalEmptyRows: 0,
-      emptyRowNumbers: []
+      emptyRowNumbers: [],
+      criticalFieldsMissingRows: 0,
+      criticalFieldsMissingRowNumbers: []
     };
   }
 

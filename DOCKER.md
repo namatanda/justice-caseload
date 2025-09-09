@@ -186,3 +186,14 @@ docker exec -it justice-caseload-database-1 psql -h localhost -p 5432 -U fiend -
 docker-compose restart database
 
 npx prisma db pull
+
+npx prisma validate
+npx prisma migrate reset
+npx prisma migrate reset --force
+npx prisma migrate dev --name remove_original_court_relation 
+#
+Remove-Item -Recurse -Force node_modules\.prisma\client -ErrorAction SilentlyContinue
+npx prisma migrate dev --name init-fresh-schema 
+npx prisma generate --schema=prisma/schema.test.prisma 
+
+# npx tsc --noEmit --skipLibCheck src/lib/csv/batch-service.ts

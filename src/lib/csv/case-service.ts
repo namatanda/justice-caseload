@@ -76,8 +76,8 @@ class CaseServiceImpl implements CaseService {
       masterDataTracker.trackCourt(originalCourtResult.isNewCourt);
     }
 
-    // Check if case exists
-    const existingCase = await this.findExistingCase(caseNumber, row.court, tx);
+    // Check if case exists using normalized court name
+    const existingCase = await this.findExistingCase(caseNumber, currentCourtResult.courtName, tx);
 
     if (existingCase) {
       return await this.updateExistingCase(existingCase, row, filedDate, tx);
@@ -97,6 +97,7 @@ class CaseServiceImpl implements CaseService {
 
   /**
    * Create case activity record
+   * Checks for existing identical activity to prevent duplicates
    */
   async createCaseActivity(
     row: CaseReturnRow,
@@ -104,7 +105,7 @@ class CaseServiceImpl implements CaseService {
     importBatchId: string,
     tx: Transaction,
     masterDataTracker?: MasterDataTracker
-  ): Promise<void> {
+  ): Promise<boolean> {
     // Validate required fields for activity
     if (!row.date_dd || !row.date_mon || !row.date_yyyy) {
       throw new Error('Missing required date fields: date_dd, date_mon, date_yyyy are required for activity');
@@ -164,6 +165,28 @@ class CaseServiceImpl implements CaseService {
       otherDetails: row.other_details,
     };
 
+    // Check for existing identical activity to prevent duplicates
+    const existingActivity = await tx.caseActivity.findFirst({
+      where: {
+        caseId: activityData.caseId,
+        activityDate: activityData.activityDate,
+        activityType: activityData.activityType,
+        primaryJudgeId: activityData.primaryJudgeId,
+      },
+    });
+
+    if (existingActivity) {
+      logger.database.info('Skipping duplicate case activity creation', {
+        caseId: activityData.caseId,
+        activityDate: activityData.activityDate.toISOString(),
+        activityType: activityData.activityType,
+        primaryJudgeId: activityData.primaryJudgeId,
+        existingActivityId: existingActivity.id,
+        importBatchId,
+      });
+      return false; // Skip creating duplicate activity
+    }
+
     logger.database.info('Creating case activity', {
       caseId: activityData.caseId,
       activityDate: activityData.activityDate.toISOString(),
@@ -195,15 +218,14 @@ class CaseServiceImpl implements CaseService {
       activityDate: createdActivity.activityDate,
       activityType: createdActivity.activityType
     });
+
+    return true;
   }
 
   /**
    * Find existing case by case number and court
    */
   async findExistingCase(caseNumber: string, courtName: string, tx: Transaction): Promise<Case | null> {
-    console.log('Debug: findExistingCase called with caseNumber:', caseNumber, 'courtName:', courtName);
-    console.log('Debug: Where object for findUnique:', { caseNumber, courtName });
-    
     return await tx.case.findFirst({
       where: {
         caseNumber,
@@ -295,7 +317,7 @@ class CaseServiceImpl implements CaseService {
     // Prepare case data
     const caseData = {
       caseNumber,
-      courtName: row.court,
+      courtName: currentCourtResult.courtName,  // Use normalized court name
       caseTypeId,
       filedDate,
       originalCourtId: originalCourtResult?.courtId || null,

@@ -6,7 +6,7 @@
  * across all CSV processing modules.
  */
 
-import { logger } from '@/lib/logger';
+import { logger } from '../logger';
 import type { 
   ErrorHandler, 
   ImportError, 

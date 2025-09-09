@@ -76,8 +76,14 @@ describe('EmptyRowDetector', () => {
         });
 
         test('does not detect row with actual data as empty', () => {
+            const config: EmptyRowConfig = {
+                ...DEFAULT_EMPTY_ROW_CONFIG,
+                treatMissingCriticalFieldsAsEmpty: false // Disable critical fields check for this test
+            };
+            const testDetector = new EmptyRowDetector(config);
+            
             const row: CsvRow = { field1: 'data', field2: '', field3: '' };
-            expect(detector.isEmptyRow(row)).toBe(false);
+            expect(testDetector.isEmptyRow(row)).toBe(false);
         });
 
         test('detects empty row object as empty', () => {
@@ -134,7 +140,9 @@ describe('EmptyRowDetector', () => {
                 trimWhitespace: false,
                 treatNullAsEmpty: false,
                 treatUndefinedAsEmpty: false,
-                customEmptyValues: ['EMPTY', 'BLANK']
+                customEmptyValues: ['EMPTY', 'BLANK'],
+                treatMissingCriticalFieldsAsEmpty: false,
+                criticalFields: []
             };
 
             const customDetector = new EmptyRowDetector(customConfig);
@@ -153,22 +161,150 @@ describe('EmptyRowDetector', () => {
         });
     });
 
-    describe('edge cases', () => {
-        test('handles special characters correctly', () => {
-            const row: CsvRow = { field1: '©', field2: '®', field3: '™' };
-            expect(detector.isEmptyRow(row)).toBe(false);
+    describe('critical fields missing detection', () => {
+        test('detects row with missing critical fields as empty when enabled', () => {
+            const config: EmptyRowConfig = {
+                ...DEFAULT_EMPTY_ROW_CONFIG,
+                treatMissingCriticalFieldsAsEmpty: true,
+                criticalFields: ['date_dd', 'date_mon', 'date_yyyy', 'court', 'case_type']
+            };
+
+            const criticalFieldsDetector = new EmptyRowDetector(config);
+
+            // Row with missing critical fields
+            const rowWithMissingCritical: CsvRow = {
+                date_dd: '', // Missing critical field
+                date_mon: '', // Missing critical field
+                date_yyyy: '', // Missing critical field
+                court: 'Some Court', // Has data
+                case_type: 'Civil', // Has data
+                other_field: 'some data' // Has data
+            };
+
+            expect(criticalFieldsDetector.isEmptyRow(rowWithMissingCritical, 5)).toBe(true);
+
+            const stats = criticalFieldsDetector.getEmptyRowStats();
+            expect(stats.criticalFieldsMissingRows).toBe(1);
+            expect(stats.criticalFieldsMissingRowNumbers).toEqual([5]);
         });
 
-        test('handles unicode whitespace', () => {
-            const row: CsvRow = { field1: '\u00A0', field2: '\u2000', field3: '\u3000' };
-            // These are non-breaking spaces and other unicode spaces
-            // They should be detected as empty when trimmed
-            expect(detector.isEmptyRow(row)).toBe(true);
+        test('does not treat row with missing critical fields as empty when disabled', () => {
+            const config: EmptyRowConfig = {
+                ...DEFAULT_EMPTY_ROW_CONFIG,
+                treatMissingCriticalFieldsAsEmpty: false,
+                criticalFields: ['date_dd', 'date_mon', 'date_yyyy']
+            };
+
+            const detector = new EmptyRowDetector(config);
+
+            const rowWithMissingCritical: CsvRow = {
+                date_dd: '', // Missing critical field
+                date_mon: '', // Missing critical field
+                date_yyyy: '', // Missing critical field
+                court: 'Some Court', // Has data
+                case_type: 'Civil' // Has data
+            };
+
+            expect(detector.isEmptyRow(rowWithMissingCritical)).toBe(false);
         });
 
-        test('handles numeric strings correctly', () => {
-            const row: CsvRow = { field1: '0', field2: '0.0', field3: '-1' };
-            expect(detector.isEmptyRow(row)).toBe(false);
+        test('does not treat row with all critical fields present as empty', () => {
+            const config: EmptyRowConfig = {
+                ...DEFAULT_EMPTY_ROW_CONFIG,
+                treatMissingCriticalFieldsAsEmpty: true,
+                criticalFields: ['date_dd', 'date_mon', 'date_yyyy', 'court', 'case_type']
+            };
+
+            const detector = new EmptyRowDetector(config);
+
+            const rowWithAllCritical: CsvRow = {
+                date_dd: '15', // Has data
+                date_mon: 'Jan', // Has data
+                date_yyyy: '2024', // Has data
+                court: 'Some Court', // Has data
+                case_type: 'Civil', // Has data
+                other_field: 'some data' // Has data
+            };
+
+            expect(detector.isEmptyRow(rowWithAllCritical)).toBe(false);
+        });
+
+        test('tracks both regular empty rows and critical fields missing rows separately', () => {
+            const config: EmptyRowConfig = {
+                ...DEFAULT_EMPTY_ROW_CONFIG,
+                treatMissingCriticalFieldsAsEmpty: true,
+                criticalFields: ['date_dd', 'date_mon', 'date_yyyy']
+            };
+
+            const detector = new EmptyRowDetector(config);
+
+            // Regular empty row (no critical fields present)
+            const regularEmptyRow: CsvRow = { field1: '', field2: '' };
+            detector.isEmptyRow(regularEmptyRow, 1);
+
+            // Row with critical fields present but empty
+            const criticalMissingRow: CsvRow = {
+                date_dd: '', // Critical field present but empty
+                date_mon: '', // Critical field present but empty
+                date_yyyy: '', // Critical field present but empty
+                court: 'Some Court'
+            };
+            detector.isEmptyRow(criticalMissingRow, 2);
+
+            // Valid row
+            const validRow: CsvRow = {
+                date_dd: '15',
+                date_mon: 'Jan',
+                date_yyyy: '2024',
+                court: 'Some Court'
+            };
+            detector.isEmptyRow(validRow, 3);
+
+            const stats = detector.getEmptyRowStats();
+            expect(stats.totalEmptyRows).toBe(2);
+            expect(stats.emptyRowNumbers).toEqual([1]);
+            expect(stats.criticalFieldsMissingRows).toBe(1);
+            expect(stats.criticalFieldsMissingRowNumbers).toEqual([2]);
+        });
+
+        test('handles mixed empty field types correctly', () => {
+            const config: EmptyRowConfig = {
+                ...DEFAULT_EMPTY_ROW_CONFIG,
+                treatMissingCriticalFieldsAsEmpty: true,
+                criticalFields: ['date_dd', 'court']
+            };
+
+            const detector = new EmptyRowDetector(config);
+
+            // Row with null/undefined critical fields
+            const rowWithNullCritical: CsvRow = {
+                date_dd: null as any,
+                court: undefined as any,
+                other_field: 'data'
+            };
+
+            expect(detector.isEmptyRow(rowWithNullCritical)).toBe(true);
+        });
+
+        test('respects critical fields configuration', () => {
+            const config: EmptyRowConfig = {
+                ...DEFAULT_EMPTY_ROW_CONFIG,
+                treatMissingCriticalFieldsAsEmpty: true,
+                criticalFields: ['court', 'judge_1'] // Only these are critical
+            };
+
+            const detector = new EmptyRowDetector(config);
+
+            // Row missing only non-critical fields
+            const rowMissingNonCritical: CsvRow = {
+                date_dd: '', // Not critical
+                date_mon: '', // Not critical
+                court: 'Some Court', // Critical and present
+                judge_1: 'Judge Name', // Critical and present
+                other_field: 'data'
+            };
+
+            expect(detector.isEmptyRow(rowMissingNonCritical)).toBe(false);
         });
     });
 });

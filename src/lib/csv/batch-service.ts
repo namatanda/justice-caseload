@@ -303,18 +303,22 @@ export class BatchServiceImpl implements BatchService {
         checksum: checksum.substring(0, 20) + '...'
       });
 
+      // Consider ANY previous import with the same checksum as a duplicate
+      // This prevents importing the same file multiple times regardless of previous import status
       const existingImport = await prisma.dailyImportBatch.findFirst({
         where: {
           fileChecksum: checksum,
-          status: { in: ['COMPLETED', 'PROCESSING'] },
-          // Only consider as duplicate if it had some successful records
-          successfulRecords: { gt: 0 }
+        },
+        orderBy: {
+          createdAt: 'desc' // Get the most recent import if there are multiple
         }
       });
 
       if (existingImport) {
         logger.database.warn('Duplicate import found', {
-          existingImportId: existingImport.id
+          existingImportId: existingImport.id,
+          status: existingImport.status,
+          successfulRecords: existingImport.successfulRecords
         });
         return {
           id: existingImport.id,
@@ -359,6 +363,7 @@ export class BatchServiceImpl implements BatchService {
           createdAt: true,
           completedAt: true,
           errorLogs: true,
+          emptyRowsSkipped: true,
         },
       }) as {
         status: any;
@@ -368,13 +373,8 @@ export class BatchServiceImpl implements BatchService {
         createdAt: Date;
         completedAt: Date | null;
         errorLogs: any;
+        emptyRowsSkipped: number | null;
       } | null;
-
-      // Separately query for emptyRowsSkipped to avoid type issues
-      const batchWithEmptyRows = await prisma.dailyImportBatch.findUnique({
-        where: { id: batchId },
-        select: { emptyRowsSkipped: true },
-      });
 
       if (!batch) {
         logger.database.info('Batch not found in database', { batchId });
@@ -393,7 +393,7 @@ export class BatchServiceImpl implements BatchService {
       }
 
       // Calculate actual data rows (excluding empty rows)
-      const emptyRowsSkipped = batchWithEmptyRows?.emptyRowsSkipped ?? 0;
+      const emptyRowsSkipped = batch?.emptyRowsSkipped ?? 0;
       const actualDataRows = batch.totalRecords - emptyRowsSkipped;
 
       // Base status from database
@@ -410,6 +410,9 @@ export class BatchServiceImpl implements BatchService {
         errors: batch.errorLogs || [],
         startedAt: batch.createdAt?.toISOString() || null,
         completedAt: batch.completedAt?.toISOString() || null,
+        failureReason: null,
+        failureCategory: null,
+        duplicatesSkipped: 0
       };
 
       // Check cache for more up-to-date progress information
@@ -424,7 +427,10 @@ export class BatchServiceImpl implements BatchService {
           progress: cachedStatus.progress !== undefined ? cachedStatus.progress : status.progress,
           message: cachedStatus.message || status.message,
           // Keep database statistics as they are the source of truth
-          stats: cachedStatus.stats
+          stats: cachedStatus.stats,
+          duplicatesSkipped: cachedStatus.stats?.duplicatesSkipped || 0,
+          failureReason: cachedStatus.stats?.failureReason || status.failureReason,
+          failureCategory: cachedStatus.stats?.failureCategory || status.failureCategory
         };
       }
 
@@ -449,9 +455,21 @@ export class BatchServiceImpl implements BatchService {
 
       const batches = await this.getBatchHistory(limit);
 
-      const formattedHistory = batches.map(batch => {
+      const formattedHistory = await Promise.all(batches.map(async (batch) => {
         const emptyRowsSkipped = batch.emptyRowsSkipped || 0;
         const actualDataRows = batch.totalRecords - emptyRowsSkipped;
+
+        // Get cached status to include runtime stats like duplicatesSkipped
+        let cachedStatus = null;
+        try {
+          cachedStatus = await cacheManager.getImportStatus(batch.id);
+        } catch (cacheError) {
+          logger.database.debug('Failed to get cached status for batch', { batchId: batch.id, error: cacheError });
+        }
+
+        const duplicatesSkipped = cachedStatus?.stats?.duplicatesSkipped || 0;
+        const failureReason = cachedStatus?.stats?.failureReason || null;
+        const failureCategory = cachedStatus?.stats?.failureCategory || null;
 
         return {
           id: batch.id,
@@ -460,13 +478,16 @@ export class BatchServiceImpl implements BatchService {
           totalRecords: batch.totalRecords,
           actualDataRows,
           emptyRowsSkipped,
+          duplicatesSkipped,
           successfulRecords: batch.successfulRecords,
           failedRecords: batch.failedRecords,
           createdAt: batch.importDate?.toISOString() || null,
           completedAt: batch.completedAt?.toISOString() || null,
           createdBy: { name: 'System User', email: 'system@justice.go.ke' }, // Simplified for now
+          failureReason,
+          failureCategory
         };
-      });
+      }));
 
       logger.database.debug('Formatted import history retrieved', {
         count: formattedHistory.length

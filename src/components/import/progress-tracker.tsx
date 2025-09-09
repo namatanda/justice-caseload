@@ -36,6 +36,9 @@ interface ImportStatus {
   estimatedTimeRemaining?: number;
   startedAt: string;
   completedAt?: string;
+  failureReason?: string;
+  failureCategory?: string;
+  duplicatesSkipped?: number;
 }
 
 export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
@@ -290,17 +293,46 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
               <h4 className="font-semibold text-red-600">Import Failed</h4>
             </div>
             <div className="space-y-3">
+              {/* Show specific failure reason if available */}
+              {status.failureReason && (
+                <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+                  <p className="text-sm text-red-800">
+                    <strong>Failure Reason:</strong> {status.failureReason}
+                  </p>
+                  {status.failureCategory && (
+                    <p className="text-xs text-red-700 mt-1">
+                      Category: {status.failureCategory}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="text-sm">
                 <p className="font-medium">Import completed with errors:</p>
                 <ul className="mt-2 space-y-1 text-muted-foreground">
                   <li>• {status.successfulRecords || 0} of {status.totalRecords || 0} records were successfully imported</li>
                   <li>• {status.failedRecords || 0} records failed validation or database insertion</li>
+                  {status.duplicatesSkipped && status.duplicatesSkipped > 0 && (
+                    <li>• {status.duplicatesSkipped} records were skipped as duplicates</li>
+                  )}
                   <li>• Review the error details below to understand what went wrong</li>
                 </ul>
               </div>
+
+              {/* Show different next steps based on failure category */}
               <div className="bg-red-100 border border-red-300 rounded-lg p-3">
                 <p className="text-sm text-red-800">
-                  <strong>Next Steps:</strong> Review the validation errors, fix the data in your CSV file, and try importing again. 
+                  <strong>Next Steps:</strong>{' '}
+                  {status.failureCategory === 'DUPLICATES_ONLY'
+                    ? 'All records in your file are duplicates of existing data. No new data was imported. You can safely upload a different file with new records.'
+                    : status.failureCategory === 'DUPLICATES_WITH_SUCCESS'
+                    ? 'Some records were duplicates and were skipped, while others were successfully imported. Review the error details to see which records were duplicates.'
+                    : status.failureCategory === 'VALIDATION_ERRORS'
+                    ? 'Records failed due to validation errors. Review the error details below, fix the data in your CSV file, and try importing again.'
+                    : status.failureCategory === 'HIGH_FAILURE_RATE'
+                    ? 'Most records failed to import. This may indicate a systematic issue with your data format. Please review the error details and consider checking your CSV structure.'
+                    : 'Review the validation errors, fix the data in your CSV file, and try importing again.'
+                  }
                   {(status.successfulRecords || 0) > 0 && " Note that successfully imported records won't be duplicated on retry."}
                 </p>
               </div>
@@ -339,6 +371,18 @@ export function ProgressTracker({ batchId, onComplete }: ProgressTrackerProps) {
               <div className="text-sm text-muted-foreground">Processed</div>
             </div>
           </div>
+
+          {/* Show duplicates skipped if available */}
+          {status.duplicatesSkipped && status.duplicatesSkipped > 0 && (
+            <div className="mt-4 pt-4 border-t">
+              <div className="text-center">
+                <div className="text-xl font-bold text-orange-600">
+                  {status.duplicatesSkipped}
+                </div>
+                <div className="text-sm text-muted-foreground">Duplicates Skipped</div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { logger } from '@/lib/logger';
+import { logger } from '../logger';
 
 // Helper function to safely convert string to number, handling empty strings
 const safeNumber = (val: any) => {
@@ -37,6 +37,43 @@ const safeString = (val: any) => {
   
   return str;
 };
+
+// Helper function for critical fields that allows missing values but validates when present
+const safeCriticalString = (val: any) => {
+  if (val === null || val === undefined) return undefined;
+  
+  // Clean string values but preserve content
+  let str = String(val)
+    .trim() // Remove leading/trailing whitespace
+    .replace(/\u00A0/g, ' ') // Replace non-breaking spaces
+    .replace(/\s{2,}/g, ' ') // Replace multiple consecutive spaces with single space
+    .trim(); // Trim again
+    
+  if (str === '' || str === 'null' || str === 'NULL' || str === 'undefined' || str === 'N/A' || str === 'n/a') {
+    return undefined;
+  }
+  
+  return str;
+};
+
+// Helper function for critical number fields
+const safeCriticalNumber = (val: any) => {
+  if (val === null || val === undefined) return undefined;
+  
+  // Clean string values that might have various types of whitespace
+  let stringVal = String(val)
+    .trim() // Remove leading/trailing whitespace
+    .replace(/\u00A0/g, ' ') // Replace non-breaking spaces
+    .replace(/\s{2,}/g, ' ') // Replace multiple consecutive spaces with single space
+    .trim(); // Trim again
+    
+  if (stringVal === '' || stringVal === 'null' || stringVal === 'NULL' || stringVal === 'undefined' || stringVal === 'N/A' || stringVal === 'n/a') {
+    return undefined;
+  }
+  
+  const num = Number(stringVal);
+  return isNaN(num) ? undefined : num;
+};
 // Constants for validation
 const VALID_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const CURRENT_YEAR = new Date().getFullYear();
@@ -73,7 +110,10 @@ export const CaseReturnRowSchema = z.object({
 
   // Case details (required)
   case_type: z.preprocess(safeString, z.string().min(1).max(100)),
-  judge_1: z.preprocess(safeString, z.string().min(1).max(500)),
+  judge_1: z.preprocess(safeString, z.string().min(1).max(500).refine((val) => {
+    // Additional validation for judge names - should not contain numbers
+    return !(val && /\d/.test(val));
+  }, { message: 'Judge name cannot contain numbers' })),
   judge_2: z.preprocess(safeString, z.string().optional()),
   judge_3: z.preprocess(safeString, z.string().optional()),
   judge_4: z.preprocess(safeString, z.string().optional()),
@@ -403,7 +443,7 @@ export function validateExtractedCourt(courtName: string): {
 
   // More permissive validation to allow common court name characters including Unicode letters
   // Allow letters, numbers, spaces, hyphens, periods, commas, parentheses, ampersands, and apostrophes
-  if (!/^[\p{L}0-9\s\-.,()'&]+$/u.test(courtName)) {
+  if (!/^[\w\s\-.,()'&]+$/i.test(courtName)) {
     issues.push('Court name contains invalid characters');
   }
 
@@ -455,7 +495,7 @@ export function validateExtractedCaseType(caseTypeName: string): {
 
   // More permissive validation to allow common case type characters including Unicode letters
   // Allow letters, numbers, spaces, hyphens, periods, commas, parentheses, ampersands, apostrophes, and slashes
-  if (!/^[\p{L}0-9\s\-.,()'&/]+$/u.test(caseTypeName)) {
+  if (!/^[\w\s\-.,()'&/]+$/i.test(caseTypeName)) {
     issues.push('Case type name contains invalid characters');
   }
 

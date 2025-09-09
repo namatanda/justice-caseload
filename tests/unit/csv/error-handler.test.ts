@@ -264,10 +264,10 @@ describe('ErrorHandlerImpl', () => {
     });
 
     it('should preserve duplicate import messages', () => {
-      const error = new Error('File has already been imported successfully. Batch ID: 123');
+      const error = new Error('File has already been imported previously. Batch ID: 123');
       const result = handler.formatUserFriendlyError(error);
       
-      expect(result).toBe('File has already been imported successfully. Batch ID: 123');
+      expect(result).toBe('File has already been imported previously. Batch ID: 123');
     });
 
     it('should format connection errors', () => {

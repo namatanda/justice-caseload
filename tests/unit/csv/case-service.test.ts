@@ -274,6 +274,10 @@ describe('CaseService', () => {
       // Arrange
       const caseId = 'test-case-id';
       const importBatchId = 'test-batch-id';
+      
+      // Mock that no existing activity is found
+      mockTx.caseActivity.findFirst.mockResolvedValue(null);
+      
       mockTx.caseActivity.create.mockResolvedValue({
         id: 'activity-id',
         caseId,
@@ -285,6 +289,14 @@ describe('CaseService', () => {
       await caseService.createCaseActivity(sampleRow, caseId, importBatchId, mockTx, mockMasterDataTracker);
 
       // Assert
+      expect(mockTx.caseActivity.findFirst).toHaveBeenCalledWith({
+        where: {
+          caseId,
+          activityDate: expect.any(Date),
+          activityType: 'Hearing',
+          primaryJudgeId: 'judge-id',
+        },
+      });
       expect(mockTx.caseActivity.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           caseId,
@@ -297,6 +309,43 @@ describe('CaseService', () => {
         }),
       });
       expect(extractAndNormalizeJudge).toHaveBeenCalledWith('Hon. John Doe', mockTx);
+    });
+
+    it('should skip creating duplicate case activity', async () => {
+      // Arrange
+      const caseId = 'test-case-id';
+      const importBatchId = 'test-batch-id';
+      
+      // Mock that an existing identical activity is found
+      mockTx.caseActivity.findFirst.mockResolvedValue({
+        id: 'existing-activity-id',
+        caseId,
+        activityDate: new Date('2023-06-20'),
+        activityType: 'Hearing',
+        primaryJudgeId: 'judge-id',
+      });
+      
+      mockTx.caseActivity.create.mockResolvedValue({
+        id: 'activity-id',
+        caseId,
+        activityDate: new Date('2023-06-20'),
+        activityType: 'Hearing',
+      });
+
+      // Act
+      await caseService.createCaseActivity(sampleRow, caseId, importBatchId, mockTx, mockMasterDataTracker);
+
+      // Assert
+      expect(mockTx.caseActivity.findFirst).toHaveBeenCalledWith({
+        where: {
+          caseId,
+          activityDate: expect.any(Date),
+          activityType: 'Hearing',
+          primaryJudgeId: 'judge-id',
+        },
+      });
+      // Should not call create since duplicate exists
+      expect(mockTx.caseActivity.create).not.toHaveBeenCalled();
     });
 
     it('should throw error for missing required activity fields', async () => {

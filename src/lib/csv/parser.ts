@@ -40,6 +40,7 @@ export class CsvParserImpl implements CsvParser {
         let lineCount = 0;
         let headersParsed = false;
         let totalRowsParsed = 0;
+        let emptyLinesCount = 0;
 
         stream.on('data', (chunk: string) => {
           buffer += chunk;
@@ -49,8 +50,6 @@ export class CsvParserImpl implements CsvParser {
           buffer = lines.pop() || '';
 
           for (const line of lines) {
-            if (line.trim() === '') continue;
-
             lineCount++;
 
             // Safety limit for very large files - stop processing early
@@ -62,7 +61,15 @@ export class CsvParserImpl implements CsvParser {
               return; // Exit early to prevent further processing
             }
 
+            // Check for empty lines
+            if (line.trim() === '') {
+              // Count empty lines but don't process them
+              emptyLinesCount++;
+              continue;
+            }
+
             if (!headersParsed) {
+              // First non-empty line is the header
               headers = this.parseCSVLine(line);
               headersParsed = true;
               logger.import.debug('Headers parsed', {
@@ -95,9 +102,18 @@ export class CsvParserImpl implements CsvParser {
 
         stream.on('end', () => {
           // Process any remaining data in buffer
-          if (buffer.trim() !== '') {
+          // We need to process the buffer even if it's empty (to account for trailing newlines)
+          lineCount++; // Count the last line
+            
+          // Check if the last line is empty
+          if (buffer.trim() === '') {
+            // Count empty lines but don't process them
+            emptyLinesCount++;
+          } else {
             if (!headersParsed) {
+              // Buffer contains the header line
               headers = this.parseCSVLine(buffer);
+              headersParsed = true;
             } else {
               const values = this.parseCSVLine(buffer);
               const row: CsvRow = {};
@@ -120,22 +136,33 @@ export class CsvParserImpl implements CsvParser {
           }
 
           const emptyRowStats = emptyRowDetector.getEmptyRowStats();
+          // Add the empty lines at the start to the empty row stats
+          const totalEmptyRows = emptyRowStats.totalEmptyRows + emptyLinesCount;
+          const totalCriticalFieldsMissingRows = emptyRowStats.criticalFieldsMissingRows;
 
           logger.import.info('CSV file parsed successfully with filtering', {
             totalRowsParsed,
             validRows: validRows.length,
-            emptyRowsSkipped: emptyRowStats.totalEmptyRows,
+            emptyRowsSkipped: totalEmptyRows,
+            criticalFieldsMissingRowsSkipped: totalCriticalFieldsMissingRows,
             headerCount: headers.length
           });
 
           resolve({
             validRows,
-            emptyRowStats,
+            emptyRowStats: {
+              totalEmptyRows,
+              emptyRowNumbers: Array.from({ length: emptyLinesCount }, (_, i) => i + 1).concat(
+                emptyRowStats.emptyRowNumbers.map(n => n + emptyLinesCount)
+              ),
+              criticalFieldsMissingRows: totalCriticalFieldsMissingRows,
+              criticalFieldsMissingRowNumbers: emptyRowStats.criticalFieldsMissingRowNumbers.map(n => n + emptyLinesCount)
+            },
             totalRowsParsed
           });
         });
 
-        stream.on('error', (error) => {
+        stream.on('error', (error: Error) => {
           logger.import.error('Failed to parse CSV file with filtering', { filePath, error });
           reject(error);
         });
@@ -243,7 +270,7 @@ export class CsvParserImpl implements CsvParser {
           resolve(data);
         });
 
-        stream.on('error', (error) => {
+        stream.on('error', (error: Error) => {
           logger.import.error('Failed to parse CSV file', { filePath, error });
           reject(error);
         });

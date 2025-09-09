@@ -6,9 +6,10 @@
  * error reporting and user-friendly suggestions.
  */
 
-import { CaseReturnRowSchema, CaseReturnRow } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
+import { CaseReturnRowSchema, CaseReturnRow } from '../validation/schemas';
+import { logger } from '../logger';
 import { errorHandler } from './error-handler';
+import { EmptyRowDetector, DEFAULT_EMPTY_ROW_CONFIG } from './utils/empty-row-detector';
 import type { 
   CsvValidator, 
   CsvRow, 
@@ -33,12 +34,38 @@ interface FieldError {
  * Implementation of the CSV Validator interface
  */
 export class CsvValidatorImpl implements CsvValidator {
+  private emptyRowDetector: EmptyRowDetector;
+  
+  constructor() {
+    // Initialize with default config that treats missing critical fields as empty
+    this.emptyRowDetector = new EmptyRowDetector(DEFAULT_EMPTY_ROW_CONFIG);
+  }
   
   /**
    * Validate a single CSV row against the schema
    */
   validateRow(row: CsvRow, rowNumber: number): ValidationResult {
     try {
+      // First check if this row should be treated as empty due to missing critical fields
+      if (this.emptyRowDetector.isCriticalFieldsMissing(row)) {
+        logger.import.debug('Row has missing critical fields, treating as empty', {
+          rowNumber,
+          missingFields: this.emptyRowDetector.getMissingCriticalFields(row)
+        });
+        
+        return {
+          isValid: false,
+          errors: [{
+            field: 'critical_fields',
+            message: 'Row has missing critical fields and will be treated as empty',
+            suggestion: 'This row will be skipped during import as it contains missing essential data',
+            rawValue: null
+          }],
+          validatedData: undefined,
+          isEmptyRow: true
+        };
+      }
+      
       // Attempt to parse the row using Zod schema
       const validatedData = CaseReturnRowSchema.parse(row);
       
@@ -91,6 +118,10 @@ export class CsvValidatorImpl implements CsvValidator {
         if (validationResult.isValid && validationResult.validatedData) {
           validRows.push(validationResult.validatedData);
           consecutiveErrors = 0; // Reset consecutive error counter
+        } else if (validationResult.isEmptyRow) {
+          // Skip empty rows - they should have been filtered out already
+          logger.import.debug('Skipping empty row during validation', { rowNumber });
+          continue;
         } else {
           // Use error handler to get properly formatted import errors
           const importErrors = errorHandler.handleValidationError(

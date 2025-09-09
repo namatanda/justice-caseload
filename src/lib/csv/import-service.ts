@@ -9,6 +9,7 @@
 import { logger } from '../logger';
 import { withTransaction } from '../database';
 import { MasterDataTracker } from '../data/extraction';
+import { CaseReturnRow, createDateFromParts } from '../validation/schemas';
 import type {
   ImportService,
   ImportJobData,
@@ -16,7 +17,8 @@ import type {
   ImportStatus,
   ImportHistoryItem,
   ProcessOptions,
-  ImportError
+  ImportError,
+  Transaction
 } from './interfaces';
 
 // Import all the service modules
@@ -59,7 +61,7 @@ export class ImportServiceImpl implements ImportService {
         return {
           success: false,
           batchId: '',
-          error: `File has already been imported successfully. Batch ID: ${existingImport.id}`
+          error: `File has already been imported previously. Batch ID: ${existingImport.id}`
         };
       }
       logger.import.info('No duplicate import found, proceeding with batch creation');
@@ -166,6 +168,7 @@ export class ImportServiceImpl implements ImportService {
 
     let totalRecords = 0;
     let successfulRecords = 0;
+    let duplicatesSkipped = 0;
 
     try {
       // If running in dry-run mode, avoid touching the database
@@ -244,6 +247,7 @@ export class ImportServiceImpl implements ImportService {
       const csvData = parseResult.validRows;
       totalRecords = parseResult.totalRowsParsed;
       const emptyRowsSkipped = parseResult.emptyRowStats.totalEmptyRows;
+      const criticalFieldsMissingRowsSkipped = parseResult.emptyRowStats.criticalFieldsMissingRows;
       const actualDataRows = csvData.length;
 
       logger.import.info('CSV parsing completed with empty row filtering', {
@@ -251,7 +255,9 @@ export class ImportServiceImpl implements ImportService {
         totalRowsParsed: totalRecords,
         actualDataRows,
         emptyRowsSkipped,
-        emptyRowNumbers: parseResult.emptyRowStats.emptyRowNumbers.slice(0, 10) // First 10 for debugging
+        criticalFieldsMissingRowsSkipped,
+        emptyRowNumbers: parseResult.emptyRowStats.emptyRowNumbers.slice(0, 10), // First 10 for debugging
+        criticalFieldsMissingRowNumbers: parseResult.emptyRowStats.criticalFieldsMissingRowNumbers.slice(0, 10) // First 10 for debugging
       });
 
       // Log empty row details at DEBUG level for debugging (first 10 row numbers only)
@@ -304,6 +310,7 @@ export class ImportServiceImpl implements ImportService {
           const batchResult = await this.processBatch(batch, i, batchId, masterDataTracker);
           successfulRecords += batchResult.successfulRecords;
           errors.push(...batchResult.errors);
+          duplicatesSkipped += batchResult.duplicatesSkipped;
 
         } catch (error) {
           logger.error('general', `Batch processing failed:`, error);
@@ -315,6 +322,28 @@ export class ImportServiceImpl implements ImportService {
 
       // Update final status - calculate failure percentage based on actual data rows, not total rows
       const failedPercentage = actualDataRows > 0 ? (errors.length / actualDataRows) * 100 : 0;
+      
+      // Determine failure reason based on the type of failures
+      let failureReason = '';
+      let failureCategory = '';
+      
+      if (duplicatesSkipped > 0 && successfulRecords === 0) {
+        // Complete failure due to duplicates only
+        failureReason = `Import failed: All ${duplicatesSkipped} records were duplicates of existing data. No new records were imported.`;
+        failureCategory = 'DUPLICATES_ONLY';
+      } else if (duplicatesSkipped > 0 && successfulRecords > 0) {
+        // Partial failure with some duplicates
+        failureReason = `Import partially failed: ${duplicatesSkipped} duplicate records were skipped, ${successfulRecords} new records were imported.`;
+        failureCategory = 'DUPLICATES_WITH_SUCCESS';
+      } else if (successfulRecords === 0 && actualDataRows > 0) {
+        // Complete failure due to validation/other errors
+        failureReason = `Import failed: No records were successfully imported due to validation or processing errors.`;
+        failureCategory = 'VALIDATION_ERRORS';
+      } else if (failedPercentage >= 95) {
+        // Near-complete failure
+        failureReason = `Import failed: ${Math.round(failedPercentage)}% of records failed to import.`;
+        failureCategory = 'HIGH_FAILURE_RATE';
+      }
       
       // Only mark as COMPLETED if at least some records were imported successfully
       let finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED';
@@ -331,6 +360,7 @@ export class ImportServiceImpl implements ImportService {
         successfulRecords,
         failedRecords: errors.length,
         emptyRowsSkipped,
+        duplicatesSkipped,
         errorLogs: JSON.parse(JSON.stringify(errors.map(err => ({
           rowNumber: err.rowNumber,
           errorType: err.errorType,
@@ -338,6 +368,8 @@ export class ImportServiceImpl implements ImportService {
         })))),
         status: finalStatus,
         completedAt: new Date(),
+        failureReason,
+        failureCategory
       };
 
       logger.import.info('Updating final batch status', {
@@ -359,7 +391,7 @@ export class ImportServiceImpl implements ImportService {
           totalRecords,
           successfulRecords,
           failedRecords: errors.length,
-          emptyRowsSkipped,
+          emptyRowsSkipped: emptyRowsSkipped + criticalFieldsMissingRowsSkipped, // Combine for DB storage
           errorLogsLength: finalBatchData.errorLogs.length
         }
       });
@@ -371,7 +403,8 @@ export class ImportServiceImpl implements ImportService {
           successfulRecords,
           failedRecords: errors.length,
           errorLogs: finalBatchData.errorLogs,
-          emptyRowsSkipped
+          emptyRowsSkipped: emptyRowsSkipped + criticalFieldsMissingRowsSkipped // Combine for DB storage
+          // Note: duplicatesSkipped is not persisted on DB model in this release
         });
         
         logger.import.info('Successfully updated batch with stats', { batchId });
@@ -403,18 +436,20 @@ export class ImportServiceImpl implements ImportService {
         totalRecords: finalBatchData.totalRecords,
         actualDataRows,
         emptyRowsSkipped: finalBatchData.emptyRowsSkipped,
+        criticalFieldsMissingRowsSkipped,
         successfulRecords: finalBatchData.successfulRecords,
         failedRecords: finalBatchData.failedRecords,
         completedAt: finalBatchData.completedAt
       });
 
       // Summary completion log with empty row statistics - separate empty rows from validation failures
-      logger.import.info(`CSV processing completed: ${successfulRecords} data rows processed successfully, ${errors.length} validation failures, ${emptyRowsSkipped} empty rows skipped`, {
+      logger.import.info(`CSV processing completed: ${successfulRecords} data rows processed successfully, ${errors.length} validation failures, ${emptyRowsSkipped} empty rows skipped, ${criticalFieldsMissingRowsSkipped} rows with missing critical fields skipped`, {
         batchId,
         filename: jobData.filename,
         totalRows: totalRecords,
         actualDataRows,
         emptyRowsSkipped,
+        criticalFieldsMissingRowsSkipped,
         successfulRecords,
         failedRecords: errors.length,
         finalStatus
@@ -422,15 +457,19 @@ export class ImportServiceImpl implements ImportService {
 
       // Update cache with final status using JobService
       await jobService.setCompletionStatus(
-        batchId, 
-        finalStatus, 
-        successfulRecords, 
-        errors.length, 
+        batchId,
+        finalStatus,
+        successfulRecords,
+        errors.length,
         {
           ...masterDataTracker.getStats(),
           totalRowsParsed: totalRecords,
           actualDataRows,
-          emptyRowsSkipped
+          emptyRowsSkipped,
+          criticalFieldsMissingRowsSkipped,
+          duplicatesSkipped,
+          failureReason,
+          failureCategory
         }
       );
 
@@ -469,10 +508,11 @@ export class ImportServiceImpl implements ImportService {
     startIndex: number,
     batchId: string,
     masterDataTracker: MasterDataTracker
-  ): Promise<{ successfulRecords: number; errors: ImportError[] }> {
+  ): Promise<{ successfulRecords: number; errors: ImportError[]; duplicatesSkipped: number }> {
 
     const errors: ImportError[] = [];
     let successfulRecords = 0;
+    let duplicatesSkipped = 0;
 
     logger.info('general', '🔄 STARTING BATCH TRANSACTION:', {
       batchSize: batch.length,
@@ -553,7 +593,22 @@ export class ImportServiceImpl implements ImportService {
             continue;
           }
 
-          const validatedRow = validationResult.validatedData!;
+          // Type guard to ensure validatedData exists
+          if (!validationResult.validatedData) {
+            logger.import.error(`Validation passed but no validated data for row ${rowIndex + 1}`, {
+              batchId,
+              rowNumber: rowIndex + 1
+            });
+            errors.push({
+              rowNumber: rowIndex + 1,
+              errorType: 'system_error',
+              errorMessage: 'Validation passed but no validated data returned',
+              rawData: row
+            });
+            continue;
+          }
+
+          const validatedRow = validationResult.validatedData;
           logger.import.info('Row validation passed', {
             validatedFields: {
               court: validatedRow.court,
@@ -567,15 +622,31 @@ export class ImportServiceImpl implements ImportService {
             }
           });
 
-          // Create or update case using case service
+          // Check for duplicate activity BEFORE creating/updating case
+          // This prevents creating case records when the activity is a duplicate
+          const isDuplicateActivity = await this.checkForDuplicateActivity(validatedRow, tx);
+          
+          if (isDuplicateActivity) {
+            duplicatesSkipped++;
+            logger.info('general', `⚠️ ROW ${rowIndex + 1} SKIPPED (duplicate activity detected)`);
+            continue; // Skip this row entirely - don't create/update case or activity
+          }
+
+          // Create or update case using case service (only if activity is not duplicate)
           try {
             const caseResult = await caseService.createOrUpdateCase(validatedRow, tx, masterDataTracker);
 
-            // Create case activity using case service
-            await caseService.createCaseActivity(validatedRow, caseResult.caseId, batchId, tx, masterDataTracker);
+            // Create case activity using case service (should always succeed since we checked for duplicates)
+            const created = await caseService.createCaseActivity(validatedRow, caseResult.caseId, batchId, tx, masterDataTracker);
 
-            successfulRecords++;
-            logger.info('general', `✅ ROW ${rowIndex + 1} PROCESSED SUCCESSFULLY`);
+            if (created) {
+              successfulRecords++;
+              logger.info('general', `✅ ROW ${rowIndex + 1} PROCESSED SUCCESSFULLY`);
+            } else {
+              // This should not happen since we checked for duplicates above
+              duplicatesSkipped++;
+              logger.warn('general', `⚠️ ROW ${rowIndex + 1} ACTIVITY CREATION FAILED (unexpected duplicate)`);
+            }
           } catch (dbError) {
             // Handle database errors using centralized error handler
             const context = {
@@ -629,7 +700,7 @@ export class ImportServiceImpl implements ImportService {
       endIndex: startIndex + batch.length - 1
     });
 
-    return { successfulRecords, errors };
+    return { successfulRecords, errors, duplicatesSkipped };
   }
 
   /**
@@ -685,6 +756,81 @@ export class ImportServiceImpl implements ImportService {
         'Import verification failed due to system error',
         { error: verificationError instanceof Error ? verificationError.message : String(verificationError) }
       );
+    }
+  }
+
+  /**
+   * Check if an activity would be a duplicate before processing the row
+   * This prevents creating case records when the activity already exists
+   */
+  private async checkForDuplicateActivity(row: CaseReturnRow, tx: Transaction): Promise<boolean> {
+    try {
+      // Validate required fields for activity duplicate check
+      if (!row.date_dd || !row.date_mon || !row.date_yyyy) {
+        logger.import.debug('Cannot check for duplicate activity: missing date fields');
+        return false; // Not a duplicate if we can't check
+      }
+      if (!row.judge_1) {
+        logger.import.debug('Cannot check for duplicate activity: missing judge_1');
+        return false; // Not a duplicate if we can't check
+      }
+
+      // Create activity date for comparison
+      let activityDate: Date;
+      try {
+        activityDate = createDateFromParts(row.date_dd, row.date_mon, row.date_yyyy);
+      } catch (error) {
+        logger.import.debug('Cannot check for duplicate activity: invalid date', { error });
+        return false; // Not a duplicate if date is invalid
+      }
+
+      // Extract judge for comparison
+      const { extractAndNormalizeJudge } = await import('../data/extraction');
+      const primaryJudge = await extractAndNormalizeJudge(row.judge_1, tx);
+
+      // Create case number for lookup
+      const { createCaseNumber } = await import('../data/extraction');
+      const caseNumber = createCaseNumber(row.caseid_type, row.caseid_no);
+
+      // Find existing case
+      const existingCase = await tx.case.findFirst({
+        where: {
+          caseNumber,
+          courtName: row.court
+        },
+      });
+
+      if (!existingCase) {
+        logger.import.debug('No existing case found for duplicate check', { caseNumber, courtName: row.court });
+        return false; // Not a duplicate if case doesn't exist
+      }
+
+      // Check for existing identical activity
+      const existingActivity = await tx.caseActivity.findFirst({
+        where: {
+          caseId: existingCase.id,
+          activityDate: activityDate,
+          activityType: row.comingfor || 'Unknown',
+          primaryJudgeId: primaryJudge.judgeId,
+        },
+      });
+
+      if (existingActivity) {
+        logger.database.info('Duplicate activity detected - skipping row processing', {
+          caseId: existingCase.id,
+          caseNumber,
+          activityDate: activityDate.toISOString(),
+          activityType: row.comingfor || 'Unknown',
+          primaryJudgeId: primaryJudge.judgeId,
+          existingActivityId: existingActivity.id,
+        });
+        return true; // This is a duplicate
+      }
+
+      return false; // Not a duplicate
+    } catch (error) {
+      logger.import.warn('Error checking for duplicate activity, proceeding with processing', { error });
+      return false; // On error, assume not duplicate to avoid blocking valid imports
     }
   }
 

@@ -4,10 +4,7 @@
 
 import { CourtType, PrismaClient, Prisma } from '@prisma/client';
 
-// Temporary type definition - will use actual CaseReturnRow from validation schemas in implementation
-export interface CaseReturnRow {
-  [key: string]: any;
-}
+import type { CaseReturnRow } from '../validation/schemas';
 
 // ============================================================================
 // Core Data Types
@@ -20,6 +17,8 @@ export interface CsvRow {
 export interface EmptyRowStats {
   totalEmptyRows: number;
   emptyRowNumbers: number[];
+  criticalFieldsMissingRows: number;
+  criticalFieldsMissingRowNumbers: number[];
 }
 
 export interface ParseResult {
@@ -49,6 +48,7 @@ export interface ValidationResult {
   isValid: boolean;
   errors: FieldError[];
   validatedData?: CaseReturnRow;
+  isEmptyRow?: boolean;
 }
 
 export interface BatchValidationResult {
@@ -130,6 +130,8 @@ export interface ImportHistoryItem {
   totalRecords: number;
   successfulRecords: number;
   failedRecords: number;
+  emptyRowsSkipped?: number | null;
+  actualDataRows?: number | null;
 }
 
 export interface BatchCreationData {

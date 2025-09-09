@@ -194,7 +194,7 @@ export function FileUpload({ onImportStart, onValidationComplete }: FileUploadPr
         const errorDetails = result.details || 'Unknown upload error';
         
         // Handle duplicate import specifically
-        if (errorMessage.includes('File has already been imported successfully') || 
+        if (errorMessage.includes('File has already been imported previously') || 
             errorMessage.includes('Duplicate import found')) {
           const batchIdMatch = errorMessage.match(/Batch ID: ([a-f0-9-]+)/);
           const existingBatchId = batchIdMatch ? batchIdMatch[1] : null;

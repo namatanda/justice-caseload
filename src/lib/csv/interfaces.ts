@@ -223,9 +223,9 @@ export interface CaseService {
   createOrUpdateCase(row: any, tx: Transaction, masterDataTracker?: any): Promise<CaseCreationResult>;
   
   /**
-   * Create case activity from CSV row data
+   * Create case activity from CSV row data. Returns true if activity was created, false if skipped as duplicate.
    */
-  createCaseActivity(row: any, caseId: string, importBatchId: string, tx: Transaction, masterDataTracker?: any): Promise<void>;
+  createCaseActivity(row: any, caseId: string, importBatchId: string, tx: Transaction, masterDataTracker?: any): Promise<boolean>;
   
   /**
    * Find existing case by case number

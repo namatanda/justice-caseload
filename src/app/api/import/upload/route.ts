@@ -10,7 +10,7 @@ import { checkRedisConnection } from '@/lib/database/redis';
 import type { ImportJobData } from '@/lib/database/redis';
 import { prisma } from '@/lib/database';
 import { logger } from '@/lib/logger';
-import { processCsvImport } from '../../../../../csv-processor';
+import { processCsvImport } from '@/lib/import/csv-processor';
 
 
 export async function POST(request: NextRequest) {
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (existingImport) {
-          throw new Error(`File has already been imported successfully. Batch ID: ${existingImport.id}`);
+          throw new Error(`File has already been imported previously. Batch ID: ${existingImport.id}`);
         }
 
         // Create import batch

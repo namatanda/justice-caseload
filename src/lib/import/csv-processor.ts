@@ -1,9 +1,8 @@
 import { logger } from '../logger';
-import { parseCSV, type CaseReturnRow } from './csv-parser';
-import { validateRows } from './validation';
-import { initiateDailyImport, getQueueStats } from './queue-handler';
-import { getOrCreateSystemUser, getImportStatus, getImportHistory, calculateFileChecksum, type ImportResult, type ImportError } from './utils';
+import { csvParser, validator, importService, batchService, jobService } from '../csv';
+import { getQueueStats } from '../database';
 import { batchInsert } from './db-operations';
+import type { CaseReturnRow } from '../validation/schemas';
 
 // Legacy alias for backward compatibility
 export const processCsvImport = processImport;
@@ -14,18 +13,24 @@ export async function processImport(filePath: string, filename: string = 'unknow
     logger.info('import', `Starting CSV import process for ${filename}`);
     
     // Step 1: Calculate checksum for duplicate detection
-    const checksum = await calculateFileChecksum(filePath);
+    const checksum = await csvParser.calculateFileChecksum(filePath);
     logger.info('import', `File checksum calculated: ${checksum.substring(0, 16)}...`);
     
     // Step 2: Get or create system user
     let effectiveUserId = userId;
     if (!effectiveUserId) {
-      effectiveUserId = await getOrCreateSystemUser();
+      effectiveUserId = await batchService.getOrCreateSystemUser();
     }
     
     // Step 3: Initiate import and queue processing
     try {
-      const batchId = await initiateDailyImport(filePath);
+      const result = await importService.initiateImport(filePath, filename, 0, effectiveUserId); // fileSize will be calculated internally
+      if (!result.success) {
+        logger.error('import', `Import initiation failed: ${result.error}`);
+        return { success: false, batchId: '', error: result.error };
+      }
+      
+      const batchId = result.batchId;
       logger.info('import', `Import batch initiated with ID: ${batchId}`);
       
       // Step 4: For immediate processing (non-queue mode), validate and process small files directly
@@ -52,28 +57,18 @@ export async function processImport(filePath: string, filename: string = 'unknow
 // Direct processing for small files or testing (replaces old monolithic logic)
 async function directProcess(filePath: string, batchId: string): Promise<void> {
   try {
-    // Step 1: Parse CSV
-    const rows = await parseCSV(filePath);
-    logger.info('import', `Parsed ${rows.length} rows from ${filePath}`);
-    
-    if (rows.length === 0) {
-      logger.warn('import', 'No rows found in CSV file');
-      return;
-    }
-    
-    // Step 2: Validate rows
-    const { validRows, invalidRows } = validateRows(rows);
-    logger.info('import', `Validation complete: ${validRows.length} valid, ${invalidRows.length} invalid rows`);
-    
-    if (invalidRows.length > 0) {
-      logger.warn('import', `Skipping ${invalidRows.length} invalid rows`);
-    }
-    
-    // Step 3: Batch process valid rows
-    if (validRows.length > 0) {
-      const result = await batchInsert(validRows, batchId);
-      logger.info('import', `Batch processing complete: ${result.success} successful, ${result.failed} failed`);
-    }
+    // For direct processing, we'll use the import service's processImport method
+    // which handles parsing, validation, and database operations in one go
+    const jobData = {
+      filePath,
+      filename: 'direct-process.csv',
+      fileSize: 0, // Will be calculated internally
+      checksum: '', // Will be calculated internally
+      userId: undefined,
+      batchId
+    };
+
+    await importService.processImport(jobData, { dryRun: false });
     
   } catch (error) {
     logger.error('import', `Direct processing failed: ${error}`);
@@ -84,27 +79,27 @@ async function directProcess(filePath: string, batchId: string): Promise<void> {
 // Legacy function wrappers for backward compatibility
 export async function initiateDailyImportLegacy(filePath: string, filename?: string, fileSize?: number, userId?: string): Promise<{ success: boolean; batchId: string }> {
   try {
-    const batchId = await initiateDailyImport(filePath);
-    return { success: true, batchId };
+    const result = await importService.initiateImport(filePath, filename || 'unknown.csv', fileSize || 0, userId);
+    if (!result.success) {
+      return { success: false, batchId: '' };
+    }
+    return { success: true, batchId: result.batchId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown import error';
     logger.error('import', `Legacy import initiation failed: ${errorMessage}`);
-    return { success: false, batchId: '', error: errorMessage };
+    return { success: false, batchId: '' };
   }
 }
 
 // Re-export all functions from modules for backward compatibility
-export * from './csv-parser';
-export * from './validation';
 export * from './db-operations';
-export * from './queue-handler';
 export * from './utils';
 
 // Main export for backward compatibility with existing API routes
 export default {
   processImport,
   initiateDailyImport: initiateDailyImportLegacy,
-  getImportStatus,
-  getImportHistory,
+  getImportStatus: importService.getImportStatus,
+  getImportHistory: importService.getImportHistory,
   getQueueStats,
 };

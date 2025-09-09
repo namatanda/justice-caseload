@@ -1,14 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../logger';
-import type { CaseReturnRow } from './validation';
+import type { CaseReturnRow } from '../validation/schemas';
+import { createDateFromParts } from '../validation/schemas';
 
 const prisma = new PrismaClient();
 
 export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId: string): Promise<{ caseId: string; activityId?: string; error?: string }> {
   try {
     return await prisma.$transaction(async (tx) => {
-      // Extract date components
-      const date = new Date(parseInt(row.date_yyyy), parseInt(row.date_mon) - 1, parseInt(row.date_dd));
+      // Extract date components using the validation helper
+      const date = createDateFromParts(row.date_dd, row.date_mon, row.date_yyyy);
       
       // Handle master data - get or create court and judge
       let court = await tx.court.findFirst({
@@ -27,18 +28,18 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
       }
 
       let judge = null;
-      if (row.judge_name) {
+      if (row.judge_1) {
         // Find judge by full name or create
         judge = await tx.judge.findFirst({
-          where: { fullName: row.judge_name }
+          where: { fullName: row.judge_1 }
         });
         
         if (!judge) {
           judge = await tx.judge.create({
             data: {
-              fullName: row.judge_name,
-              firstName: row.judge_name.split(' ')[0] || row.judge_name,
-              lastName: row.judge_name.split(' ').slice(1).join(' ') || '',
+              fullName: row.judge_1,
+              firstName: row.judge_1.split(' ')[0] || row.judge_1,
+              lastName: row.judge_1.split(' ').slice(1).join(' ') || '',
               isActive: true
             }
           });
@@ -46,13 +47,10 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
       }
 
       // Create or update case
-      console.log('Debug: Row court value:', row.court, 'Type:', typeof row.court);
-      console.log('Debug: Full row keys:', Object.keys(row));
-      console.log('Debug: Where object:', {
-        case_number_court_unique: {
-          caseNumber: `${row.caseid_type}-${row.caseid_no}`,
-          courtName: row.court
-        }
+      logger.database.debug('Creating/updating case', {
+        caseNumber: `${row.caseid_type}-${row.caseid_no}`,
+        courtName: row.court,
+        caseType: row.case_type
       });
       
       const caseRecord = await tx.case.upsert({
@@ -68,7 +66,7 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
           filedDate: date,
           // caseTypeId needs to be handled properly - for now using string cast
           caseTypeId: row.case_type || 'default',
-          hasLegalRepresentation: row.legalrep !== 'none'
+          hasLegalRepresentation: row.legalrep === 'Yes'
         },
         create: {
           caseNumber: `${row.caseid_type}-${row.caseid_no}`,
@@ -78,7 +76,7 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
           originalCourtId: court.id,
           filedDate: date,
           caseTypeId: row.case_type || 'default',
-          hasLegalRepresentation: row.legalrep !== 'none'
+          hasLegalRepresentation: row.legalrep === 'Yes'
         }
       });
 
@@ -92,7 +90,7 @@ export async function createOrUpdateCaseAndActivity(row: CaseReturnRow, batchId:
           details: `Case ${row.outcome} imported/updated from CSV batch ${batchId}`,
           primaryJudgeId: judge ? judge.id : 'default-judge-id',
           outcome: row.outcome as any,
-          hasLegalRepresentation: row.legalrep !== 'none',
+          hasLegalRepresentation: row.legalrep === 'Yes',
           custodyStatus: 'NOT_APPLICABLE'
         }
       });
