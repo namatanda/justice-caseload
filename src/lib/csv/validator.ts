@@ -33,7 +33,7 @@ interface FieldError {
 /**
  * Implementation of the CSV Validator interface
  */
-export class CsvValidatorImpl implements CsvValidator {
+export class CsvDataValidator implements CsvValidator {
   private emptyRowDetector: EmptyRowDetector;
   
   constructor() {
@@ -214,7 +214,7 @@ export class CsvValidatorImpl implements CsvValidator {
  * Factory function to create a validator instance
  */
 export function createValidator(): CsvValidator {
-  return new CsvValidatorImpl();
+  return new CsvDataValidator();
 }
 
 /**
