@@ -4,12 +4,18 @@ import { cacheManager } from '../database/redis';
 import { AnalyticsFiltersSchema } from '../validation/schemas';
 
 // Helper function to calculate case age in days from filed date
+function calculateCaseAgeInDays(filedDate: Date): number {
+  const days = Math.floor((Date.now() - filedDate.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(0, days); // Ensure non-negative days
+}
+
+// Helper function to calculate case age in days from filed date
 function calculateAverageCaseAge(cases: { filedDate: Date }[]): number {
   if (!cases || cases.length === 0) return 0;
   
   const totalDays = cases.reduce((sum, case_) => {
-    const days = Math.floor((Date.now() - case_.filedDate.getTime()) / (1000 * 60 * 60 * 24));
-    return sum + Math.max(0, days); // Ensure non-negative days
+    const days = calculateCaseAgeInDays(case_.filedDate);
+    return sum + days;
   }, 0);
   
   return totalDays / cases.length;
@@ -218,7 +224,7 @@ async function getCaseAgeDistribution(
   };
   
   cases.forEach(case_ => {
-    const age = Math.floor((Date.now() - case_.filedDate.getTime()) / (1000 * 60 * 60 * 24));
+    const age = calculateCaseAgeInDays(case_.filedDate);
     if (age <= 30) distribution['0-30 days']++;
     else if (age <= 90) distribution['31-90 days']++;
     else if (age <= 180) distribution['91-180 days']++;
@@ -260,8 +266,8 @@ async function getMonthlyTrends(filters: any): Promise<Array<{
 }>> {
   const monthlyData = await prisma.$queryRaw<Array<{
     month: string;
-    filed: number;
-    resolved: number;
+    filed: bigint;
+    resolved: bigint;
   }>>`
     SELECT 
       TO_CHAR(DATE_TRUNC('month', filed_date), 'YYYY-MM') as month,
@@ -279,11 +285,14 @@ async function getMonthlyTrends(filters: any): Promise<Array<{
   // Calculate running backlog
   let runningBacklog = 0;
   return monthlyData.reverse().map(item => {
-    runningBacklog += item.filed - item.resolved;
+    // Convert BigInt to number
+    const filed = Number(item.filed);
+    const resolved = Number(item.resolved);
+    runningBacklog += filed - resolved;
     return {
       month: item.month,
-      filed: item.filed,
-      resolved: item.resolved,
+      filed,
+      resolved,
       backlog: runningBacklog,
     };
   });
@@ -295,30 +304,64 @@ async function getCourtWorkload(filters: any): Promise<Array<{
   caseCount: number;
   averageAge: number;
 }>> {
-  const courtData = await prisma.$queryRaw<Array<{
-    court_name: string;
-    case_count: number;
-    average_age: number;
-  }>>`
-    SELECT 
-      c.court_name,
-      COUNT(cases.id) as case_count,
-      AVG(cases.case_age_days) as average_age
-    FROM cases
-    LEFT JOIN courts c ON cases.original_court_id = c.id
-    WHERE cases.status != 'DELETED'
-      ${filters.startDate ? Prisma.sql`AND cases.filed_date >= ${filters.startDate}` : Prisma.empty}
-      ${filters.endDate ? Prisma.sql`AND cases.filed_date <= ${filters.endDate}` : Prisma.empty}
-    GROUP BY c.court_name
-    ORDER BY case_count DESC
-    LIMIT 10
-  `;
+  // First get all cases with their filed dates and court information
+  const allCases = await prisma.case.findMany({
+    where: {
+      status: { not: 'DELETED' },
+      // Apply filters
+      ...(filters.startDate || filters.endDate ? {
+        filedDate: {
+          ...(filters.startDate ? { gte: filters.startDate } : {}),
+          ...(filters.endDate ? { lte: filters.endDate } : {}),
+        }
+      } : {}),
+      ...(filters.caseTypeId ? { caseTypeId: filters.caseTypeId } : {}),
+      ...(filters.courtId ? { originalCourtId: filters.courtId } : {}),
+      ...(filters.status ? { status: filters.status as any } : {}),
+    },
+    include: {
+      originalCourt: {
+        select: {
+          id: true,
+          courtName: true,
+        }
+      }
+    }
+  });
+
+  // Group cases by court and calculate statistics
+  const courtStats = new Map<string, { courtName: string; cases: { filedDate: Date }[] }>();
   
-  return courtData.map(item => ({
-    courtName: item.court_name || 'Unknown Court',
-    caseCount: Number(item.case_count),
-    averageAge: Math.round(Number(item.average_age) || 0),
-  }));
+  allCases.forEach(case_ => {
+    const courtId = case_.originalCourt?.id || 'unknown';
+    const courtName = case_.originalCourt?.courtName || 'Unknown Court';
+    
+    if (!courtStats.has(courtId)) {
+      courtStats.set(courtId, {
+        courtName,
+        cases: []
+      });
+    }
+    
+    courtStats.get(courtId)!.cases.push({
+      filedDate: case_.filedDate
+    });
+  });
+
+  // Convert to result format
+  const result = Array.from(courtStats.entries()).map(([courtId, stats]) => {
+    const averageAge = calculateAverageCaseAge(stats.cases);
+    return {
+      courtName: stats.courtName,
+      caseCount: stats.cases.length,
+      averageAge: Math.round(averageAge || 0),
+    };
+  });
+
+  // Sort by case count descending and limit to top 10
+  return result
+    .sort((a, b) => b.caseCount - a.caseCount)
+    .slice(0, 10);
 }
 
 // Recent activity
@@ -464,7 +507,7 @@ export async function getCourtAnalytics(courtId?: string): Promise<CourtAnalytic
     const activeCases = cases.filter(c => c.status === 'ACTIVE').length;
     const resolvedCases = cases.filter(c => c.status === 'RESOLVED').length;
     const averageCaseAge = cases.length > 0 
-      ? Math.round(cases.reduce((sum, c) => sum + Math.floor((Date.now() - c.filedDate.getTime()) / (1000 * 60 * 60 * 24)), 0) / cases.length)
+      ? Math.round(cases.reduce((sum, c) => sum + calculateCaseAgeInDays(c.filedDate), 0) / cases.length)
       : 0;
     const clearanceRate = totalCases > 0 ? (resolvedCases / totalCases) * 100 : 0;
     
@@ -496,8 +539,8 @@ async function getCourtMonthlyCaseload(courtId: string): Promise<Array<{
 }>> {
   const monthlyData = await prisma.$queryRaw<Array<{
     month: string;
-    new_cases: number;
-    resolved_cases: number;
+    new_cases: bigint;
+    resolved_cases: bigint;
   }>>`
     SELECT 
       TO_CHAR(DATE_TRUNC('month', filed_date), 'YYYY-MM') as month,
@@ -513,11 +556,14 @@ async function getCourtMonthlyCaseload(courtId: string): Promise<Array<{
   
   let runningBacklog = 0;
   return monthlyData.reverse().map(item => {
-    runningBacklog += item.new_cases - item.resolved_cases;
+    // Convert BigInt to number
+    const newCases = Number(item.new_cases);
+    const resolvedCases = Number(item.resolved_cases);
+    runningBacklog += newCases - resolvedCases;
     return {
       month: item.month,
-      newCases: item.new_cases,
-      resolvedCases: item.resolved_cases,
+      newCases,
+      resolvedCases,
       backlog: runningBacklog,
     };
   });

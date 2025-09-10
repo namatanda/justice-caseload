@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import '@testing-library/jest-dom';
 import logger from '../src/lib/logger';
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';

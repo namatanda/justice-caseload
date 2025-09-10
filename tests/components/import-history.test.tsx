@@ -3,7 +3,6 @@ import { render, waitFor, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ImportHistory } from '../../src/components/import/import-history';
-import '@testing-library/jest-dom';
 
 describe('ImportHistory Component', () => {
   // Mock the fetch function
@@ -182,7 +181,7 @@ describe('ImportHistory Component', () => {
 
     fireEvent.click(screen.getByText('Next'));
     await waitFor(() => expect(screen.getByText('Validation error on row 51')).toBeInTheDocument());
-    expect(screen.getAllByRole('img', { className: /bg-red/ })).toHaveLength(2); // errors on second page
+    expect(screen.getAllByTestId('error-badge')).toHaveLength(2); // errors on second page
   });
 
   it('should handle empty case with no View Errors button', async () => {
@@ -294,8 +293,8 @@ describe('ImportHistory Component', () => {
       expect(screen.getByText('date_dd invalid')).toBeInTheDocument();
     });
 
-    // Assert red badge for error
-    expect(screen.getByRole('img', { className: /bg-red/ })).toBeInTheDocument();
+    // Assert error badge exists
+    expect(screen.getByTestId('error-badge')).toBeInTheDocument();
 
     expect(mockFetch).toHaveBeenCalledWith('/api/import/batch-2/errors?page=1&limit=50', expect.any(Object));
     expect(mockErrorsResponse.total).toBe(145);
@@ -414,7 +413,7 @@ describe('ImportHistory Component', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledWith('/api/import/batch-2/errors?page=2&limit=50', expect.any(Object));
-    const errorImg = screen.getByRole('img');
-    expect(errorImg.className).toMatch(/bg-red/); // Still has errors
+    const errorBadge = screen.getByTestId('error-badge');
+    expect(errorBadge.className).toMatch(/bg-red/); // Still has errors
   });
   });
