@@ -5,6 +5,14 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ batchId: string }> }
 ) {
+  // Skip debug endpoints in production build
+  if (process.env.NODE_ENV === 'production' && process.env.SKIP_DEBUG_ROUTES === 'true') {
+    return NextResponse.json(
+      { success: false, error: 'Debug endpoints disabled in production build' },
+      { status: 404 }
+    );
+  }
+
   try {
     const { batchId } = await params;
 

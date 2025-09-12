@@ -637,7 +637,12 @@ export function validateCsvRowData(row: any): {
 
 // Validation for bulk import operations
 export const BulkImportValidationSchema = z.object({
-  file: z.instanceof(File),
+  file: z.object({
+    name: z.string(),
+    size: z.number(),
+    type: z.string(),
+    arrayBuffer: z.function().optional(),
+  }),
   options: z.object({
     validateOnly: z.boolean().default(false),
     skipErrors: z.boolean().default(false),

@@ -1,0 +1,107 @@
+services:
+  # PostgreSQL Database
+  database:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER:-fiend}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-1a6n4g3e5l1a}
+      POSTGRES_DB: ${PG_DB:-caseload}
+    ports:
+      - "${PG_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-fiend} -d ${PG_DB:-caseload}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - justice-network
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Redis for caching and queue processing
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - justice-network
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    command: redis-server --save 20 1 --loglevel warning
+
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: justice_caseload_app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://${PG_USER:-fiend}:${PG_PASSWORD:-1a6n4g3e5l1a}@database:5432/${PG_DB:-caseload}?sslmode=disable&connect_timeout=10&pool_timeout=10&socket_timeout=10
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      PORT: 3000
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - justice-network
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Run migrations on startup
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        node server.js
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  justice-network:
+    driver: bridge

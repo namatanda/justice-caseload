@@ -26,7 +26,7 @@ export interface FileValidationResult {
 }
 
 export async function validateUploadedFile(
-  file: File | { name: string; size: number; type: string }
+  file: { name: string; size: number; type: string; arrayBuffer?: () => Promise<ArrayBuffer> }
 ): Promise<FileValidationResult> {
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
@@ -188,7 +188,7 @@ function getFileValidationSuggestion(errorMessage: string, detectedMimeType?: st
 }
 
 export async function saveUploadedFile(
-  file: File,
+  file: { name: string; size: number; type: string; arrayBuffer: () => Promise<ArrayBuffer> },
   uploadDir: string = process.env.UPLOAD_DIR || './uploads'
 ): Promise<{
   success: boolean;

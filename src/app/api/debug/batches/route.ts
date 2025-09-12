@@ -3,6 +3,14 @@ import { prisma } from '@/lib/database/prisma';
 import { logger } from '@/lib/logger';
 
 export async function GET() {
+  // Skip debug endpoints in production build
+  if (process.env.NODE_ENV === 'production' && process.env.SKIP_DEBUG_ROUTES === 'true') {
+    return NextResponse.json(
+      { success: false, error: 'Debug endpoints disabled in production build' },
+      { status: 404 }
+    );
+  }
+
   try {
     const batches = await prisma.dailyImportBatch.findMany({
       take: 10,

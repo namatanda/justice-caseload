@@ -176,13 +176,14 @@ export async function createVerifiedUploadMiddleware() {
         details?: any;
       };
 
-      const { runSystemIntegrityCheck } = await import('../../../scripts/system-integrity-check');
-      const systemChecks: SystemCheck[] = await runSystemIntegrityCheck();
+      // System integrity check disabled in production build
+      // const { runSystemIntegrityCheck } = await import('../../../scripts/system-integrity-check');
+      // const systemChecks: SystemCheck[] = await runSystemIntegrityCheck();
       
-      const criticalIssues = systemChecks.filter((check: SystemCheck) => check.status === 'FAIL');
-      if (criticalIssues.length > 0) {
-        logger.system.warn('System integrity issues detected before upload verification', criticalIssues);
-      }
+      // const criticalIssues = systemChecks.filter((check: SystemCheck) => check.status === 'FAIL');
+      // if (criticalIssues.length > 0) {
+      //   logger.system.warn('System integrity issues detected before upload verification', criticalIssues);
+      // }
     } catch (error) {
       logger.system.warn('Could not run system integrity check (this is non-critical)', error);
     }
