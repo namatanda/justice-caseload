@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import logger from '@/lib/logger';
+import { dbQueryDuration, dbQueriesTotal } from '@/lib/metrics';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -12,11 +13,25 @@ const prismaLog: Array<'query' | 'info' | 'warn' | 'error'> =
     ? ['query', 'error', 'warn']
     : ['error'];
 
+// Connection pool configuration
+const connectionLimit = parseInt(process.env.DB_CONNECTION_LIMIT || '20');
+const poolTimeout = parseInt(process.env.DB_POOL_TIMEOUT || '10000');
+const idleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '30000');
+
+// Build database URL with connection pooling parameters
+const buildDatabaseUrl = (baseUrl: string) => {
+  const url = new URL(baseUrl);
+  url.searchParams.set('connection_limit', connectionLimit.toString());
+  url.searchParams.set('pool_timeout', poolTimeout.toString());
+  url.searchParams.set('idle_timeout', idleTimeout.toString());
+  return url.toString();
+};
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: prismaLog,
   datasources: {
     db: {
-      url: process.env.DATABASE_URL,
+      url: buildDatabaseUrl(process.env.DATABASE_URL!),
     },
   },
 });
@@ -201,8 +216,141 @@ export async function runMaintenance(): Promise<{
   }
 }
 
+// Database metrics utilities
+export async function withDatabaseMetrics<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  tableName: string = 'unknown'
+): Promise<T> {
+  const startTime = Date.now();
+
+  try {
+    const result = await operation();
+    const duration = (Date.now() - startTime) / 1000;
+
+    dbQueryDuration
+      .labels(operationName, tableName)
+      .observe(duration);
+
+    dbQueriesTotal
+      .labels(operationName, tableName, 'success')
+      .inc();
+
+    return result;
+  } catch (error) {
+    const duration = (Date.now() - startTime) / 1000;
+
+    dbQueryDuration
+      .labels(operationName, tableName)
+      .observe(duration);
+
+    dbQueriesTotal
+      .labels(operationName, tableName, 'error')
+      .inc();
+
+    throw error;
+  }
+}
+
+// Connection pool statistics and monitoring
+export async function getConnectionStatistics(): Promise<{
+  activeConnections: number;
+  idleConnections: number;
+  totalConnections: number;
+  waitingClients: number;
+  maxConnections: number;
+  poolUtilization: number;
+}> {
+  try {
+    // Get connection pool statistics from PostgreSQL
+    const poolStats = await prisma.$queryRaw`
+      SELECT
+        count(*) filter (where state = 'active') as active_connections,
+        count(*) filter (where state = 'idle') as idle_connections,
+        count(*) as total_connections,
+        (SELECT count(*) FROM pg_stat_activity WHERE state = 'active' AND datname = current_database()) as waiting_clients
+      FROM pg_stat_activity
+      WHERE datname = current_database() AND pid <> pg_backend_pid()
+    ` as any[];
+
+    const stats = poolStats[0] || {};
+    const maxConnections = connectionLimit;
+    const activeConnections = parseInt(stats.active_connections || '0');
+    const idleConnections = parseInt(stats.idle_connections || '0');
+    const totalConnections = parseInt(stats.total_connections || '0');
+    const waitingClients = parseInt(stats.waiting_clients || '0');
+
+    return {
+      activeConnections,
+      idleConnections,
+      totalConnections,
+      waitingClients,
+      maxConnections,
+      poolUtilization: maxConnections > 0 ? (activeConnections / maxConnections) * 100 : 0
+    };
+  } catch (error) {
+    logger.database.error('Failed to get connection statistics', error);
+    return {
+      activeConnections: 0,
+      idleConnections: 0,
+      totalConnections: 0,
+      waitingClients: 0,
+      maxConnections: connectionLimit,
+      poolUtilization: 0
+    };
+  }
+}
+
+// Connection pool health monitoring
+export async function getPoolHealthStatus(): Promise<{
+  healthy: boolean;
+  issues: string[];
+  recommendations: string[];
+}> {
+  try {
+    const stats = await getConnectionStatistics();
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+
+    // Check for high utilization
+    if (stats.poolUtilization > 90) {
+      issues.push(`Connection pool utilization is critically high: ${stats.poolUtilization.toFixed(1)}%`);
+      recommendations.push('Consider increasing DB_CONNECTION_LIMIT or optimizing query performance');
+    } else if (stats.poolUtilization > 75) {
+      issues.push(`Connection pool utilization is high: ${stats.poolUtilization.toFixed(1)}%`);
+      recommendations.push('Monitor connection usage and consider scaling database resources');
+    }
+
+    // Check for waiting clients
+    if (stats.waitingClients > 5) {
+      issues.push(`${stats.waitingClients} clients waiting for database connections`);
+      recommendations.push('Reduce concurrent database operations or increase connection pool size');
+    }
+
+    // Check for too many idle connections
+    if (stats.idleConnections > stats.maxConnections * 0.7) {
+      recommendations.push('Consider reducing DB_CONNECTION_LIMIT to optimize resource usage');
+    }
+
+    return {
+      healthy: issues.length === 0,
+      issues,
+      recommendations
+    };
+  } catch (error) {
+    logger.database.error('Failed to get pool health status', error);
+    return {
+      healthy: false,
+      issues: ['Unable to monitor connection pool health'],
+      recommendations: ['Check database connectivity and monitoring setup']
+    };
+  }
+}
+
 // Export types for use in other modules
 export type PrismaTransaction = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 export type DatabaseStats = Awaited<ReturnType<typeof getDatabaseStats>>;
+export type ConnectionStatistics = Awaited<ReturnType<typeof getConnectionStatistics>>;
+export type PoolHealthStatus = Awaited<ReturnType<typeof getPoolHealthStatus>>;
 
 export default prisma;

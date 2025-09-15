@@ -10,6 +10,7 @@ import { logger } from '../logger';
 import { withTransaction } from '../database';
 import { MasterDataTracker } from '../data/extraction';
 import { CaseReturnRow, createDateFromParts } from '../validation/schemas';
+import { casesProcessedTotal, importBatchesTotal } from '../metrics';
 import type {
   ImportService,
   ImportJobData,
@@ -88,6 +89,9 @@ export class ImportServiceImpl implements ImportService {
         fileChecksum: checksum,
         userId: effectiveUserId,
       });
+
+      // Record import batch creation metric
+      importBatchesTotal.labels('created').inc();
 
       logger.import.info('Import batch created in database', {
         id: importBatch.id,
@@ -354,6 +358,9 @@ export class ImportServiceImpl implements ImportService {
       } else if (errors.length === actualDataRows) {
         finalStatus = 'FAILED'; // All data records failed
       }
+
+      // Record import batch completion metric
+      importBatchesTotal.labels(finalStatus.toLowerCase()).inc();
       
       const finalBatchData = {
         totalRecords,
@@ -641,10 +648,14 @@ export class ImportServiceImpl implements ImportService {
 
             if (created) {
               successfulRecords++;
+              // Record successful case processing metric
+              casesProcessedTotal.labels('success', validatedRow.court || 'unknown').inc();
               logger.info('general', `✅ ROW ${rowIndex + 1} PROCESSED SUCCESSFULLY`);
             } else {
               // This should not happen since we checked for duplicates above
               duplicatesSkipped++;
+              // Record failed case processing metric
+              casesProcessedTotal.labels('failed', validatedRow.court || 'unknown').inc();
               logger.warn('general', `⚠️ ROW ${rowIndex + 1} ACTIVITY CREATION FAILED (unexpected duplicate)`);
             }
           } catch (dbError) {

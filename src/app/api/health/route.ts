@@ -1,95 +1,102 @@
 import { NextResponse } from 'next/server';
-import { checkRedisConnection } from '@/lib/database/redis';
-import { prisma } from '@/lib/database/prisma';
+import { logger } from '@/lib/logger';
+
+interface HealthCheck {
+  name: string;
+  status: 'PASS' | 'FAIL';
+  message: string;
+}
 
 export async function GET() {
   try {
-    const healthCheck = {
-      timestamp: new Date().toISOString(),
-      status: 'healthy',
-      services: {
-        database: { status: 'unknown', latency: 0, error: null as string | null },
-        redis: { status: 'unknown', error: null as string | null },
-        workers: { status: 'unknown', error: null as string | null }
-      }
-    };
+    logger.health.info('Running basic health check');
 
-    // Database health check
-    const dbStart = Date.now();
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      healthCheck.services.database = {
-        status: 'healthy',
-        latency: Date.now() - dbStart,
-        error: null
-      };
-    } catch (error) {
-      healthCheck.services.database = {
-        status: 'unhealthy',
-        latency: Date.now() - dbStart,
-        error: error instanceof Error ? error.message : 'Unknown database error'
-      };
-      healthCheck.status = 'degraded';
-    }
+    // Run basic health checks
+    const checks: HealthCheck[] = await runBasicHealthChecks();
 
-    // Redis health check
-    try {
-      const redisConnected = await checkRedisConnection();
-      healthCheck.services.redis = {
-        status: redisConnected ? 'healthy' : 'unhealthy',
-        error: redisConnected ? null : 'Redis connection failed'
-      };
-      if (!redisConnected) {
-        healthCheck.status = 'degraded';
-      }
-    } catch (error) {
-      healthCheck.services.redis = {
-        status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown Redis error'
-      };
-      healthCheck.status = 'degraded';
-    }
+    const criticalIssues = checks.filter((check: HealthCheck) => check.status === 'FAIL');
+    const isHealthy = criticalIssues.length === 0;
 
-    // Workers health check (simplified - check if we can access the queue)
-    try {
-      if (healthCheck.services.redis.status === 'healthy') {
-        // If Redis is healthy, workers should be accessible
-        healthCheck.services.workers = {
-          status: 'healthy',
-          error: null
-        };
-      } else {
-        healthCheck.services.workers = {
-          status: 'unhealthy',
-          error: 'Redis unavailable - workers cannot function'
-        };
-      }
-    } catch (error) {
-      healthCheck.services.workers = {
-        status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown worker error'
-      };
-      healthCheck.status = 'degraded';
-    }
+    logger.health.info(`Basic health check complete: ${checks.filter(c => c.status === 'PASS').length} passed, ${criticalIssues.length} failed`);
 
-    // Overall status
-    if (healthCheck.services.database.status === 'unhealthy') {
-      healthCheck.status = 'unhealthy';
-    }
-
-    const statusCode = healthCheck.status === 'unhealthy' ? 503 : 
-                      healthCheck.status === 'degraded' ? 200 : 200;
-
-    return NextResponse.json(healthCheck, { status: statusCode });
+    return NextResponse.json({
+      healthy: isHealthy,
+      checks,
+      timestamp: new Date().toISOString()
+    }, {
+      status: isHealthy ? 200 : 503 // Service Unavailable if not healthy
+    });
 
   } catch (error) {
-    return NextResponse.json(
-      {
-        timestamp: new Date().toISOString(),
-        status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown health check error'
-      },
-      { status: 503 }
-    );
+    logger.health.error('Basic health check failed', error);
+
+    return NextResponse.json({
+      healthy: false,
+      error: 'Health check system failure',
+      details: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
+}
+
+async function runBasicHealthChecks(): Promise<HealthCheck[]> {
+  const checks: HealthCheck[] = [];
+
+  // Check database connection
+  try {
+    const { prisma } = await import('@/lib/database');
+    await prisma.$queryRaw`SELECT 1`;
+
+    checks.push({
+      name: 'Database',
+      status: 'PASS',
+      message: 'Connected successfully'
+    });
+  } catch (error) {
+    checks.push({
+      name: 'Database',
+      status: 'FAIL',
+      message: 'Cannot connect to database'
+    });
+  }
+
+  // Check database pool health
+  try {
+    const { getPoolHealthStatus } = await import('@/lib/database');
+    const poolHealth = await getPoolHealthStatus();
+
+    checks.push({
+      name: 'Database Pool',
+      status: poolHealth.healthy ? 'PASS' : 'FAIL',
+      message: poolHealth.healthy
+        ? 'Pool operating normally'
+        : `Pool issues detected: ${poolHealth.issues.join(', ')}`
+    });
+  } catch (error) {
+    checks.push({
+      name: 'Database Pool',
+      status: 'FAIL',
+      message: 'Cannot check pool health'
+    });
+  }
+
+  // Check Redis connection
+  try {
+    const { checkRedisConnection } = await import('@/lib/database');
+    const redisHealthy = await checkRedisConnection();
+
+    checks.push({
+      name: 'Redis',
+      status: redisHealthy ? 'PASS' : 'FAIL',
+      message: redisHealthy ? 'Connected successfully' : 'Cannot connect to Redis'
+    });
+  } catch (error) {
+    checks.push({
+      name: 'Redis',
+      status: 'FAIL',
+      message: 'Redis check failed'
+    });
+  }
+
+  return checks;
 }

@@ -1,54 +1,76 @@
-import { Redis } from 'ioredis';
+import { Redis, Cluster } from 'ioredis';
 import logger from '@/lib/logger';
 import { Queue, Worker, Job } from 'bullmq';
+import { redisOperationDuration, redisOperationsTotal } from '@/lib/metrics';
 
-// Redis connection configuration
-function parseRedisUrl(redisUrl?: string) {
-  if (!redisUrl) {
-    return {
-      host: 'localhost',
-      port: 6379,
-      password: undefined,
-      db: 0,
-    };
+// Check if clustering is enabled
+const REDIS_CLUSTER_ENABLED = process.env.REDIS_CLUSTER_ENABLED === 'true';
+
+// Conditionally import from cluster module or use single instance
+let redis: Redis | Cluster;
+let redisPublisher: Redis | Cluster;
+let redisSubscriber: Redis | Cluster;
+
+if (REDIS_CLUSTER_ENABLED) {
+  // Use clustered Redis instances
+  const { redis: clusterRedis, redisPublisher: clusterPublisher, redisSubscriber: clusterSubscriber } = await import('./redis-cluster');
+  redis = clusterRedis;
+  redisPublisher = clusterPublisher;
+  redisSubscriber = clusterSubscriber;
+  logger.database.info('Using Redis clustering');
+} else {
+  // Use single Redis instance (backward compatibility)
+  function parseRedisUrl(redisUrl?: string) {
+    if (!redisUrl) {
+      return {
+        host: 'localhost',
+        port: 6379,
+        password: undefined,
+        db: 0,
+      };
+    }
+
+    try {
+      const url = new URL(redisUrl);
+      return {
+        host: url.hostname,
+        port: parseInt(url.port) || 6379,
+        password: url.password || undefined,
+        db: parseInt(url.pathname.slice(1)) || 0,
+      };
+    } catch (error) {
+      logger.database.warn('Invalid REDIS_URL format, falling back to localhost');
+      return {
+        host: 'localhost',
+        port: 6379,
+        password: undefined,
+        db: 0,
+      };
+    }
   }
 
-  try {
-    const url = new URL(redisUrl);
-    return {
-      host: url.hostname,
-      port: parseInt(url.port) || 6379,
-      password: url.password || undefined,
-      db: parseInt(url.pathname.slice(1)) || 0,
-    };
-  } catch (error) {
-    logger.database.warn('Invalid REDIS_URL format, falling back to localhost');
-    return {
-      host: 'localhost',
-      port: 6379,
-      password: undefined,
-      db: 0,
-    };
-  }
+  const redisUrlConfig = parseRedisUrl(process.env.REDIS_URL);
+
+  const redisConfig = {
+    host: process.env.REDIS_HOST || redisUrlConfig.host,
+    port: parseInt(process.env.REDIS_PORT || redisUrlConfig.port.toString()),
+    password: process.env.REDIS_PASSWORD || redisUrlConfig.password,
+    db: parseInt(process.env.REDIS_DB || redisUrlConfig.db.toString()),
+    retryDelayOnFailover: 100,
+    enableReadyCheck: false,
+    maxRetriesPerRequest: null,
+    lazyConnect: true,
+  };
+
+  // Create Redis instances
+  redis = new Redis(redisConfig);
+  redisPublisher = new Redis(redisConfig);
+  redisSubscriber = new Redis(redisConfig);
+  logger.database.info('Using single Redis instance');
 }
 
-const redisUrlConfig = parseRedisUrl(process.env.REDIS_URL);
-
-const redisConfig = {
-  host: process.env.REDIS_HOST || redisUrlConfig.host,
-  port: parseInt(process.env.REDIS_PORT || redisUrlConfig.port.toString()),
-  password: process.env.REDIS_PASSWORD || redisUrlConfig.password,
-  db: parseInt(process.env.REDIS_DB || redisUrlConfig.db.toString()),
-  retryDelayOnFailover: 100,
-  enableReadyCheck: false,
-  maxRetriesPerRequest: null,
-  lazyConnect: true,
-};
-
-// Create Redis instances
-export const redis = new Redis(redisConfig);
-export const redisPublisher = new Redis(redisConfig);
-export const redisSubscriber = new Redis(redisConfig);
+// Export Redis instances
+export { redis, redisPublisher, redisSubscriber };
 
 // Queue configuration
 export const importQueue = new Queue('csv-import', { 
@@ -96,34 +118,66 @@ export const analyticsQueue = new Queue('analytics', {
 
 // Cache utilities
 export class CacheManager {
-  private redis: Redis;
-  
+  private redis: Redis | Cluster;
+
   constructor() {
     this.redis = redis;
   }
 
   async set(key: string, value: any, ttlSeconds: number = 300): Promise<void> {
-    await this.redis.setex(key, ttlSeconds, JSON.stringify(value));
+    await withRedisMetrics(
+      () => this.redis.setex(key, ttlSeconds, JSON.stringify(value)),
+      'set',
+      key
+    );
   }
 
   async get<T>(key: string): Promise<T | null> {
-    const value = await this.redis.get(key);
+    const value = await withRedisMetrics(
+      () => this.redis.get(key),
+      'get',
+      key
+    );
     return value ? JSON.parse(value) : null;
   }
 
   async del(key: string): Promise<void> {
-    await this.redis.del(key);
+    await withRedisMetrics(
+      () => this.redis.del(key),
+      'del',
+      key
+    );
   }
 
   async exists(key: string): Promise<boolean> {
-    const result = await this.redis.exists(key);
+    const result = await withRedisMetrics(
+      () => this.redis.exists(key),
+      'exists',
+      key
+    );
     return result === 1;
   }
 
   async invalidatePattern(pattern: string): Promise<void> {
-    const keys = await this.redis.keys(pattern);
-    if (keys.length > 0) {
-      await this.redis.del(...keys);
+    if (this.redis.constructor.name === 'Cluster') {
+      // In cluster mode, we need to scan across all nodes
+      const cluster = this.redis as any; // Type assertion for cluster
+      const keys = [];
+      for (const node of cluster.nodes('master')) {
+        const nodeKeys = await node.keys(pattern);
+        keys.push(...nodeKeys);
+      }
+      if (keys.length > 0) {
+        // Delete keys across nodes
+        const pipeline = cluster.pipeline();
+        keys.forEach(key => pipeline.del(key));
+        await pipeline.exec();
+      }
+    } else {
+      const keys = await this.redis.keys(pattern);
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+      }
     }
   }
 
@@ -147,6 +201,42 @@ export class CacheManager {
 
   async getImportStatus(batchId: string): Promise<any | null> {
     return this.get(`import:${batchId}`);
+  }
+}
+
+// Redis metrics wrapper
+export async function withRedisMetrics<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  key: string = 'unknown'
+): Promise<T> {
+  const startTime = Date.now();
+
+  try {
+    const result = await operation();
+    const duration = (Date.now() - startTime) / 1000;
+
+    redisOperationDuration
+      .labels(operationName, key)
+      .observe(duration);
+
+    redisOperationsTotal
+      .labels(operationName, 'success')
+      .inc();
+
+    return result;
+  } catch (error) {
+    const duration = (Date.now() - startTime) / 1000;
+
+    redisOperationDuration
+      .labels(operationName, key)
+      .observe(duration);
+
+    redisOperationsTotal
+      .labels(operationName, 'error')
+      .inc();
+
+    throw error;
   }
 }
 
@@ -238,8 +328,8 @@ export async function cleanupQueues(): Promise<void> {
 
 // Session and rate limiting utilities
 export class SessionManager {
-  private redis: Redis;
-  
+  private redis: Redis | Cluster;
+
   constructor() {
     this.redis = redis;
   }
@@ -263,8 +353,8 @@ export class SessionManager {
 }
 
 export class RateLimiter {
-  private redis: Redis;
-  
+  private redis: Redis | Cluster;
+
   constructor() {
     this.redis = redis;
   }

@@ -9,7 +9,7 @@ import {
   disconnectRedis
 } from './redis';
 
-export { 
+export {
   prisma as default,
   prisma,
   checkDatabaseConnection,
@@ -19,8 +19,11 @@ export {
   cleanupOldData,
   getSlowQueries,
   runMaintenance,
+  getPoolHealthStatus,
   type PrismaTransaction,
-  type DatabaseStats
+  type DatabaseStats,
+  type ConnectionStatistics,
+  type PoolHealthStatus
 } from './prisma';
 
 // Redis and queue utilities

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { getSystemResources, formatBytes, formatUptime } from '@/lib/system-monitoring';
 
 interface SystemCheck {
   name: string;
@@ -131,12 +132,133 @@ async function runBasicHealthChecks(): Promise<SystemCheck[]> {
     });
   }
   
-  return checks;
+ // Check Redis cluster status
+ try {
+   const { checkRedisConnection, redis } = await import('@/lib/database');
+   const { isRedisCluster } = await import('@/lib/database/redis-cluster');
+   const redisHealthy = await checkRedisConnection();
+
+   if (redisHealthy) {
+     const clusterInfo = isRedisCluster(redis) ? 'Cluster mode' : 'Single instance';
+     checks.push({
+       name: 'Redis Cluster',
+       status: 'PASS',
+       message: `Redis connected successfully (${clusterInfo})`,
+       details: { mode: clusterInfo }
+     });
+   } else {
+     checks.push({
+       name: 'Redis Cluster',
+       status: 'FAIL',
+       message: 'Cannot connect to Redis',
+       details: { mode: 'Unknown' }
+     });
+   }
+ } catch (error) {
+   checks.push({
+     name: 'Redis Cluster',
+     status: 'FAIL',
+     message: 'Redis cluster check failed',
+     details: { error: error instanceof Error ? error.message : String(error) }
+   });
+ }
+
+ // Check database connection pool statistics
+ try {
+   const { getConnectionStatistics, getPoolHealthStatus } = await import('@/lib/database');
+   const [poolStats, poolHealth] = await Promise.all([
+     getConnectionStatistics(),
+     getPoolHealthStatus()
+   ]);
+
+   const poolUtilization = (poolStats.activeConnections / poolStats.maxConnections) * 100;
+   const status = poolUtilization > 90 ? 'WARN' : poolUtilization > 70 ? 'PASS' : 'PASS';
+
+   checks.push({
+     name: 'Database Pool',
+     status: poolHealth.healthy ? status : 'WARN',
+     message: poolHealth.healthy
+       ? `Pool utilization: ${poolUtilization.toFixed(1)}% (${poolStats.activeConnections}/${poolStats.maxConnections} connections)`
+       : `Pool issues detected: ${poolHealth.issues.join(', ')}`,
+     details: { ...poolStats, health: poolHealth }
+   });
+ } catch (error) {
+   checks.push({
+     name: 'Database Pool',
+     status: 'WARN',
+     message: 'Could not check database pool statistics',
+     details: { error: error instanceof Error ? error.message : String(error) }
+   });
+ }
+
+ // Check queue processing metrics
+ try {
+   const { getQueueStats } = await import('@/lib/database');
+   const queueStats = await getQueueStats();
+
+   const totalQueued = queueStats.import.waiting + queueStats.import.active + queueStats.analytics.waiting + queueStats.analytics.active;
+   const totalFailed = queueStats.import.failed + queueStats.analytics.failed;
+
+   const status = totalFailed > 10 ? 'WARN' : 'PASS';
+
+   checks.push({
+     name: 'Queue Processing',
+     status,
+     message: `${totalQueued} jobs queued, ${totalFailed} failed jobs`,
+     details: queueStats
+   });
+ } catch (error) {
+   checks.push({
+     name: 'Queue Processing',
+     status: 'WARN',
+     message: 'Could not check queue statistics',
+     details: { error: error instanceof Error ? error.message : String(error) }
+   });
+ }
+
+ // Check system resources
+ try {
+   const resources = getSystemResources();
+
+   const memoryStatus = resources.memory.usage > 90 ? 'WARN' : resources.memory.usage > 80 ? 'PASS' : 'PASS';
+   const cpuStatus = resources.cpu.usage > 90 ? 'WARN' : resources.cpu.usage > 80 ? 'PASS' : 'PASS';
+
+   checks.push({
+     name: 'System Resources',
+     status: memoryStatus === 'WARN' || cpuStatus === 'WARN' ? 'WARN' : 'PASS',
+     message: `CPU: ${resources.cpu.usage.toFixed(1)}%, Memory: ${resources.memory.usage.toFixed(1)}% (${formatBytes(resources.memory.used)}/${formatBytes(resources.memory.total)})`,
+     details: {
+       cpu: {
+         usage: resources.cpu.usage,
+         cores: resources.cpu.cores,
+         loadAverage: resources.cpu.loadAverage
+       },
+       memory: {
+         usage: resources.memory.usage,
+         used: formatBytes(resources.memory.used),
+         total: formatBytes(resources.memory.total),
+         free: formatBytes(resources.memory.free)
+       },
+       uptime: formatUptime(resources.uptime),
+       platform: resources.platform,
+       nodeVersion: resources.nodeVersion
+     }
+   });
+ } catch (error) {
+   checks.push({
+     name: 'System Resources',
+     status: 'WARN',
+     message: 'Could not check system resources',
+     details: { error: error instanceof Error ? error.message : String(error) }
+   });
+ }
+
+ return checks;
 }
 
 function generateRecommendations(checks: any[]): string[] {
   const recommendations: string[] = [];
-  
+
   checks.forEach(check => {
     if (check.status !== 'PASS') {
       switch (check.name) {
@@ -155,13 +277,24 @@ function generateRecommendations(checks: any[]): string[] {
         case 'Data Integrity':
           recommendations.push('Database appears empty - ensure proper seeding before uploads');
           break;
+        case 'Database Pool':
+          if (check.details && check.details.health) {
+            const health = check.details.health;
+            if (health.issues && health.issues.length > 0) {
+              health.issues.forEach((issue: string) => recommendations.push(`Database Pool: ${issue}`));
+            }
+            if (health.recommendations && health.recommendations.length > 0) {
+              health.recommendations.forEach((rec: string) => recommendations.push(`Database Pool: ${rec}`));
+            }
+          }
+          break;
       }
     }
   });
-  
+
   if (recommendations.length === 0) {
     recommendations.push('System appears healthy - ready for uploads');
   }
-  
+
   return recommendations;
 }

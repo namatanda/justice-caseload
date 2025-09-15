@@ -1,0 +1,330 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./node_modules/@prisma/client"
+}
+
+generator testClient {
+  provider = "prisma-client-js"
+  output   = "./prisma/test-client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: This test schema mirrors the main schema but uses SQLite as the datasource.
+// It is used only during tests to avoid requiring Postgres or DB admin tools.
+
+model Court {
+  id        String   @id @default(uuid())
+  courtName String   @map("court_name")
+  courtCode String   @unique @map("court_code")
+  courtType String   @map("court_type")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  originalCode   String? @map("original_code")
+  originalNumber String? @map("original_number")
+  originalYear   Int?    @map("original_year")
+
+  cases Case[] @relation("OriginalCourt")
+
+  @@index([courtType, isActive])
+  @@index([courtName])
+  @@index([courtCode])
+  @@index([originalCode])
+  @@map("courts")
+}
+
+model Judge {
+  id        String   @id @default(uuid())
+  fullName  String   @map("full_name")
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  caseActivities  CaseActivity[]        @relation("PrimaryJudge")
+  caseAssignments CaseJudgeAssignment[]
+
+  @@index([fullName])
+  @@index([firstName, lastName])
+  @@index([isActive])
+  @@map("judges")
+}
+
+model CaseType {
+  id           String   @id @default(uuid())
+  caseTypeName String   @map("case_type_name")
+  caseTypeCode String   @unique @map("case_type_code")
+  description  String?
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  cases Case[]
+
+  @@index([caseTypeName])
+  @@index([isActive])
+  @@map("case_types")
+}
+
+model Case {
+  id                     String    @id @default(uuid())
+  caseNumber             String    @map("case_number")
+  courtName              String    @map("court_name")
+  caseTypeId             String    @map("case_type_id")
+  filedDate              DateTime  @map("filed_date")
+  originalCourtId        String?   @map("original_court_id")
+  originalCaseNumber     String?   @map("original_case_number")
+  originalYear           Int?      @map("original_year")
+  parties                Json
+  status                 String    @default("ACTIVE")
+  lastActivityDate       DateTime? @map("last_activity_date")
+  totalActivities        Int       @default(0) @map("total_activities")
+  hasLegalRepresentation Boolean   @default(false) @map("has_legal_representation")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  caseidType String? @map("caseid_type")
+  caseidNo   String? @map("caseid_no")
+
+  maleApplicant         Int                   @default(0) @map("male_applicant")
+  femaleApplicant       Int                   @default(0) @map("female_applicant")
+  organizationApplicant Int                   @default(0) @map("organization_applicant")
+  maleDefendant         Int                   @default(0) @map("male_defendant")
+  femaleDefendant       Int                   @default(0) @map("female_defendant")
+  organizationDefendant Int                   @default(0) @map("organization_defendant")
+  caseType              CaseType              @relation(fields: [caseTypeId], references: [id])
+  originalCourt         Court?                @relation("OriginalCourt", fields: [originalCourtId], references: [id])
+  activities            CaseActivity[]
+  judgeAssignments      CaseJudgeAssignment[]
+
+  @@unique([caseNumber, courtName], name: "case_number_court_unique")
+  @@map("cases")
+}
+
+model CaseActivity {
+  id                     String    @id @default(uuid())
+  caseId                 String    @map("case_id")
+  activityDate           DateTime  @map("activity_date")
+  activityType           String    @map("activity_type")
+  outcome                String
+  reasonForAdjournment   String?
+  nextHearingDate        DateTime?
+  primaryJudgeId         String    @map("primary_judge_id")
+  hasLegalRepresentation Boolean
+  applicantWitnesses     Int       @default(0)
+  defendantWitnesses     Int       @default(0)
+  custodyStatus          String
+  details                String?
+  importBatchId          String    @map("import_batch_id")
+  createdAt              DateTime  @default(now())
+
+  judge1 String?
+  judge2 String?
+  judge3 String?
+  judge4 String?
+  judge5 String?
+  judge6 String?
+  judge7 String?
+
+  comingFor      String?
+  legalRepString String?
+  custodyNumeric Int?
+  otherDetails   String?
+
+  case         Case             @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  primaryJudge Judge            @relation("PrimaryJudge", fields: [primaryJudgeId], references: [id])
+  importBatch  DailyImportBatch @relation(fields: [importBatchId], references: [id])
+
+  @@map("case_activities")
+}
+
+model CaseJudgeAssignment {
+  caseId     String
+  judgeId    String
+  assignedAt DateTime @default(now())
+  isPrimary  Boolean  @default(false)
+
+  case  Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  judge Judge @relation(fields: [judgeId], references: [id])
+
+  @@id([caseId, judgeId])
+  @@map("case_judge_assignments")
+}
+
+model DailyImportBatch {
+  id                      String    @id @default(uuid())
+  importDate              DateTime  @map("import_date")
+  filename                String
+  fileSize                Int       @map("file_size")
+  fileChecksum            String    @map("file_checksum")
+  totalRecords            Int       @map("total_records")
+  successfulRecords       Int       @map("successful_records")
+  failedRecords           Int       @map("failed_records")
+  errorLogs               Json      @map("error_logs")
+  status                  String
+  estimatedCompletionTime DateTime?
+  processingStartTime     DateTime?
+  userConfig              Json
+  validationWarnings      Json
+  createdAt               DateTime  @default(now())
+  completedAt             DateTime?
+  createdBy               String    @map("created_by")
+
+  activities   CaseActivity[]
+  user         User                @relation(fields: [createdBy], references: [id])
+  progress     ImportProgress[]
+  errorDetails ImportErrorDetail[]
+
+  @@map("daily_import_batches")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      String   @default("DATA_ENTRY")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  importBatches     DailyImportBatch[]
+  importSessions    ImportSession[]
+  validationResults ValidationResult[]
+
+  @@map("users")
+}
+
+model ImportProgress {
+  id                 String   @id @default(uuid())
+  batchId            String   @map("batch_id")
+  progressPercentage Int?     @map("progress_percentage")
+  currentStep        String?  @map("current_step")
+  message            String?
+  recordsProcessed   Int      @default(0) @map("records_processed")
+  totalRecords       Int      @default(0) @map("total_records")
+  errorsCount        Int      @default(0) @map("errors_count")
+  warningsCount      Int      @default(0) @map("warnings_count")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  batch DailyImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("import_progress")
+}
+
+model ImportErrorDetail {
+  id           String   @id @default(uuid())
+  batchId      String   @map("batch_id")
+  rowNumber    Int?     @map("row_number")
+  columnName   String?  @map("column_name")
+  errorType    String   @map("error_type")
+  errorMessage String   @map("error_message")
+  rawValue     String?  @map("raw_value")
+  suggestedFix String?  @map("suggested_fix")
+  severity     String   @default("ERROR")
+  isResolved   Boolean  @default(false) @map("is_resolved")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  batch DailyImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("import_error_details")
+}
+
+model ImportSession {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  sessionToken String    @unique @map("session_token")
+  status       String    @default("ACTIVE")
+  startedAt    DateTime  @default(now())
+  lastActivity DateTime  @default(now())
+  expiresAt    DateTime?
+  metadata     Json
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("import_sessions")
+}
+
+model ValidationResult {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  filename         String
+  fileChecksum     String   @map("file_checksum")
+  validationStatus String   @map("validation_status")
+  totalRows        Int      @map("total_rows")
+  validRows        Int      @map("valid_rows")
+  invalidRows      Int      @map("invalid_rows")
+  errors           Json
+  warnings         Json
+  previewData      Json
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("validation_results")
+}
+
+// Enums (mirrored from main schema to ensure Prisma client exports same enums)
+enum CourtType {
+  SC
+  ELC
+  ELRC
+  KC
+  SCC
+  COA
+  MC
+  HC
+  TC
+
+  @@map("court_type")
+}
+
+enum CaseStatus {
+  ACTIVE
+  RESOLVED
+  PENDING
+  TRANSFERRED
+  DELETED
+
+  @@map("case_status")
+}
+
+enum CustodyStatus {
+  IN_CUSTODY
+  ON_BAIL
+  NOT_APPLICABLE
+
+  @@map("custody_status")
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CLEANED
+
+  @@map("import_status")
+}
+
+enum UserRole {
+  ADMIN
+  DATA_ENTRY
+  VIEWER
+
+  @@map("user_role")
+}
+
+enum ErrorSeverity {
+  ERROR
+  WARNING
+  INFO
+
+  @@map("error_severity")
+}
