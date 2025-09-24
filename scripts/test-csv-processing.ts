@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { processCsvImport } from '@/lib/import/csv-processor';
-import type { ImportJobData } from '@/lib/database/redis';
+import type { ImportJobData } from '@/lib/db/redis';
 
 async function testCsvProcessing() {
   console.log('🧪 Testing CSV processing...');

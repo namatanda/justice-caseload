@@ -55,7 +55,7 @@ async function runBasicHealthChecks(): Promise<SystemCheck[]> {
   
   // Check database connection
   try {
-    const { prisma } = await import('@/lib/database');
+    const { prisma } = await import('@/lib/db');
     const courtCount = await prisma.court.count();
     
     checks.push({
@@ -75,7 +75,7 @@ async function runBasicHealthChecks(): Promise<SystemCheck[]> {
   
   // Check for failed migrations
   try {
-    const { prisma } = await import('@/lib/database');
+    const { prisma } = await import('@/lib/db');
     const failedMigrations = await prisma.$queryRaw`
       SELECT migration_name, finished_at, logs 
       FROM _prisma_migrations 
@@ -106,7 +106,7 @@ async function runBasicHealthChecks(): Promise<SystemCheck[]> {
   
   // Check basic data integrity
   try {
-    const { prisma } = await import('@/lib/database');
+    const { prisma } = await import('@/lib/db');
     const [users, courts, batches] = await Promise.all([
       prisma.user.count(),
       prisma.court.count(),
@@ -134,8 +134,8 @@ async function runBasicHealthChecks(): Promise<SystemCheck[]> {
   
  // Check Redis cluster status
  try {
-   const { checkRedisConnection, redis } = await import('@/lib/database');
-   const { isRedisCluster } = await import('@/lib/database/redis-cluster');
+   const { checkRedisConnection, redis } = await import('@/lib/db');
+   const { isRedisCluster } = await import('@/lib/db/redis-cluster');
    const redisHealthy = await checkRedisConnection();
 
    if (redisHealthy) {
@@ -165,7 +165,7 @@ async function runBasicHealthChecks(): Promise<SystemCheck[]> {
 
  // Check database connection pool statistics
  try {
-   const { getConnectionStatistics, getPoolHealthStatus } = await import('@/lib/database');
+   const { getConnectionStatistics, getPoolHealthStatus } = await import('@/lib/db');
    const [poolStats, poolHealth] = await Promise.all([
      getConnectionStatistics(),
      getPoolHealthStatus()
@@ -193,7 +193,7 @@ async function runBasicHealthChecks(): Promise<SystemCheck[]> {
 
  // Check queue processing metrics
  try {
-   const { getQueueStats } = await import('@/lib/database');
+   const { getQueueStats } = await import('@/lib/db');
    const queueStats = await getQueueStats();
 
    const totalQueued = queueStats.import.waiting + queueStats.import.active + queueStats.analytics.waiting + queueStats.analytics.active;

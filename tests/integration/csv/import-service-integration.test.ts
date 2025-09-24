@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { importService } from '@/lib/csv/import-service';
-import { prisma } from '@/lib/database';
+import { prisma } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
 

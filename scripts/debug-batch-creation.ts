@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 import logger from '@/lib/logger';
 
-import { prisma } from '@/lib/database';
+import { prisma } from '@/lib/db';
 import { getOrCreateSystemUser } from '@/lib/import/csv-processor';
 
 async function debugBatchCreation() {

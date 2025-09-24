@@ -1,4 +1,4 @@
-import { SystemHealthDashboard } from '@/components/admin/system-health';
+import { SystemHealthDashboard } from '@/components/features/admin/system-health';
 
 export default function AdminPage() {
   return (

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
-import { prisma } from '@/lib/database/prisma';
-import { importQueue } from '@/lib/database/redis';
+import { prisma } from '@/lib/db/prisma';
+import { importQueue } from '@/lib/db/redis';
 
 export async function DELETE(
   request: NextRequest,

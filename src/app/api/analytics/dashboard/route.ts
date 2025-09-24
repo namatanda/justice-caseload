@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDashboardAnalytics } from '@/lib/analytics/dashboard';
-import { logger } from '@/lib/logger';
+import { withErrorHandler, DatabaseError } from '@/lib/errors/api-errors';
 
-export async function GET(request: NextRequest) {
+async function dashboardHandler(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
@@ -44,15 +44,13 @@ export async function GET(request: NextRequest) {
       data: analytics
     });
   } catch (error) {
-    logger.error('general', 'Error fetching dashboard analytics:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch dashboard analytics',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    // Transform database errors to our error types
+    if (error instanceof Error && error.message.includes('database')) {
+      throw new DatabaseError('Failed to fetch analytics data');
+    }
+    throw error;
   }
 }
+
+// Export with error handling wrapper
+export const GET = withErrorHandler(dashboardHandler, '/api/analytics/dashboard');

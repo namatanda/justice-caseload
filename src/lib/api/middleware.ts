@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { httpRequestDuration, httpRequestsTotal } from './metrics';
+import { httpRequestDuration, httpRequestsTotal } from '../metrics';
 
 // Wrapper function for API routes to collect HTTP metrics
 export function withMetrics<T extends any[]>(

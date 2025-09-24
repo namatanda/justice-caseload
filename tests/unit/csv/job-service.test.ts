@@ -31,7 +31,7 @@ vi.mock('../../../src/lib/logger', () => ({
 }));
 
 // Import mocked modules
-import { importQueue, cacheManager } from '../../../src/lib/database/redis';
+import { importQueue, cacheManager } from '../../../src/lib/db/redis';
 import { logger } from '../../../src/lib/logger';
 
 describe('JobService', () => {

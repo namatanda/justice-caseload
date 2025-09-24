@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processCsvImport } from '@/lib/import/csv-processor';
-import type { ImportJobData } from '@/lib/database/redis';
+import type { ImportJobData } from '@/lib/db/redis';
+import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
@@ -28,7 +29,6 @@ export async function POST(request: NextRequest) {
     logger.info('general', '🧪 DEBUG ENDPOINT: Testing import for batch:', batchId);
     
     // Get batch info from database
-    const { prisma } = await import('@/lib/database');
     const batch = await prisma.dailyImportBatch.findUnique({
       where: { id: batchId },
       include: { user: true }
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     
     // Try to process (this will likely fail but give us debug info)
     try {
-      await processCsvImport(mockJobData);
+      await processCsvImport(mockJobData.filePath, mockJobData.filename, mockJobData.userId);
       logger.info('general', '🧪 DEBUG ENDPOINT: Import processing completed successfully');
     } catch (error) {
       logger.error('general', '🧪 DEBUG ENDPOINT: Import processing failed:', error);

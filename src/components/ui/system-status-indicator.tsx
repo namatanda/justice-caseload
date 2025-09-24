@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Database, Activity, CloudOff, RefreshCw } from 'lucide-react';
-import { useSystemStatus } from '@/hooks/use-system-status';
+import { useSystemStatus } from '@/lib/hooks/use-system-status';
 import { Button } from './button';
 
 export function SystemStatusIndicator() {

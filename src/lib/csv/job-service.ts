@@ -5,7 +5,7 @@
  * This module abstracts the job processing orchestration from the main import logic.
  */
 
-import { importQueue, cacheManager } from '../database/redis';
+import { importQueue, cacheManager } from '../db/redis';
 import { logger } from '../logger';
 import type {
   JobService,

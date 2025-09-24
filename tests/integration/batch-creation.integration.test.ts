@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { prisma } from '../../src/lib/database';
+import { prisma } from '../../src/lib/db';
 import { Prisma } from '@prisma/client';
 import { getOrCreateSystemUser } from '../../src/lib/import/csv-processor';
 import { testDb } from '../setup';

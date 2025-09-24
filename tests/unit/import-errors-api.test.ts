@@ -18,7 +18,7 @@ vi.mock('@prisma/client', () => ({
 
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/import/[batchId]/errors/route';
-import { requireAuth } from '@/lib/middleware/auth';
+import { requireAuth } from '@/lib/auth';
 
 const mockPrisma = mockPrismaStructure;
 

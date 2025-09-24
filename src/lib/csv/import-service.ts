@@ -7,7 +7,7 @@
  */
 
 import { logger } from '../logger';
-import { withTransaction } from '../database';
+import { withTransaction } from '../db';
 import { MasterDataTracker } from '../data/extraction';
 import { CaseReturnRow, createDateFromParts } from '../validation/schemas';
 import { casesProcessedTotal, importBatchesTotal } from '../metrics';
@@ -724,7 +724,7 @@ export class ImportServiceImpl implements ImportService {
     failedRecords: number
   ): Promise<void> {
     try {
-      const { prisma } = await import('../database');
+      const { prisma } = await import('../db');
       const persistedActivities = await prisma.caseActivity.count({
         where: { importBatchId: batchId },
       });

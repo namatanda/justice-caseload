@@ -5,7 +5,7 @@ import { LayoutDashboard, Upload, Bell, User, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import Link from 'next/link';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/lib/hooks/use-mobile';
 
 interface MobileHeaderProps {
   onMenuToggle?: () => void;

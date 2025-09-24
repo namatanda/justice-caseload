@@ -1,4 +1,4 @@
-import { initializeQueueWorkers } from '@/lib/database/redis';
+import { initializeQueueWorkers } from '@/lib/db/redis';
 import { logger } from '@/lib/logger';
 
 let workersInitialized = false;

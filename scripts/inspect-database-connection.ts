@@ -6,7 +6,7 @@
  * This script shows exactly which database connection is being used
  */
 
-import { prisma } from '../src/lib/database';
+import { prisma } from '../src/lib/db';
 
 async function inspectDatabaseConnection() {
   console.log('🔍 Inspecting database connection...');

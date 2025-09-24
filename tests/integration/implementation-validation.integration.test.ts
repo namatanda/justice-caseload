@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { prisma } from '../../src/lib/database';
+import { prisma } from '../../src/lib/db';
 import { CaseReturnRowSchema, createDateFromParts } from '../../src/lib/validation/schemas';
 import { 
   extractAndNormalizeCourt, 
@@ -12,7 +12,7 @@ import {
   getCaseById, 
   getCasesPaginated 
 } from '../../src/lib/operations/case-crud';
-import { checkDatabaseConnection, getDatabaseStats } from '../../src/lib/database/prisma';
+import { checkDatabaseConnection, getDatabaseStats } from '../../src/lib/db/prisma';
 
 describe('Implementation Validation Integration Tests', () => {
   let testUserId: string;

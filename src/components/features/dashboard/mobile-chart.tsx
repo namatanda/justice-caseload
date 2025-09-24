@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { 
   LineChart, 
   Line, 
@@ -21,12 +21,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Expand, X, Info } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { 
+import {
   Tooltip as UITooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+import { useMobileChart } from '@/lib/hooks/use-mobile-chart';
 
 interface MobileChartProps {
   title: string;
@@ -43,15 +44,7 @@ interface MobileChartProps {
 }
 
 export function MobileChart({ title, description, data, type, dataKey, config }: MobileChartProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const expandButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Focus management for accessibility
-  useEffect(() => {
-    if (!isExpanded && expandButtonRef.current) {
-      expandButtonRef.current.focus();
-    }
-  }, [isExpanded]);
+  const { isExpanded, setIsExpanded, expandButtonRef, generateChartId } = useMobileChart({ title });
 
   const renderChart = () => {
     switch (type) {
@@ -142,7 +135,7 @@ export function MobileChart({ title, description, data, type, dataKey, config }:
               fill="#8884d8"
               dataKey={dataKey}
               nameKey="name"
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              label={(props: any) => `${props.name} ${(props.percent * 100).toFixed(0)}%`}
             >
               {data.map((entry, index) => (
                 <Cell 
@@ -170,12 +163,12 @@ export function MobileChart({ title, description, data, type, dataKey, config }:
     <Card 
       className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out rounded-lg"
       role="region"
-      aria-labelledby={`chart-title-${title.replace(/\s+/g, '-').toLowerCase()}`}
+      aria-labelledby={generateChartId()}
     >
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle id={`chart-title-${title.replace(/\s+/g, '-').toLowerCase()}`}>
+            <CardTitle id={generateChartId()}>
               {title}
             </CardTitle>
             <CardDescription className="flex items-center gap-1">
@@ -218,7 +211,7 @@ export function MobileChart({ title, description, data, type, dataKey, config }:
                 <div className="flex-1 py-4">
                   <div className="h-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      {renderChart()}
+                      {renderChart() || <div>Chart not available</div>}
                     </ResponsiveContainer>
                   </div>
                 </div>
@@ -229,7 +222,7 @@ export function MobileChart({ title, description, data, type, dataKey, config }:
       </CardHeader>
       <CardContent className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          {renderChart()}
+          {renderChart() || <div>Chart not available</div>}
         </ResponsiveContainer>
       </CardContent>
     </Card>

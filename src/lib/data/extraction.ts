@@ -1,6 +1,6 @@
 import { CourtType, PrismaClient, Prisma } from '@prisma/client';
 import logger from '@/lib/logger';
-import { PrismaTransaction } from '../database';
+import { PrismaTransaction } from '../db';
 import { validateExtractedCourt, validateExtractedJudge, validateExtractedCaseType } from '../validation/schemas';
 
 // Court extraction and normalization

@@ -46,7 +46,7 @@ export async function validateUploadedFile(
     if (!validation.success) {
       let hasValidFallback = false;
 
-      validation.error.errors.forEach(err => {
+      validation.error.issues.forEach(err => {
         // Provide more specific error messages based on the issue
         let enhancedMessage = err.message;
         let enhancedSuggestion = getFileValidationSuggestion(err.message, detectedMimeType, hasCsvExtension);

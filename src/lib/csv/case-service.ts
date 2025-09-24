@@ -77,6 +77,9 @@ class CaseServiceImpl implements CaseService {
     }
 
     // Check if case exists using normalized court name
+    if (!currentCourtResult) {
+      throw new Error(`Invalid court data for case ${caseNumber}: court name required`);
+    }
     const existingCase = await this.findExistingCase(caseNumber, currentCourtResult.courtName, tx);
 
     if (existingCase) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { prisma } from '../../src/lib/database';
+import { prisma } from '../../src/lib/db';
 
 describe('Database Check Integration Tests', () => {
   beforeAll(async () => {

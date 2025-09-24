@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
-import { prisma } from '../database';
-import { cacheManager } from '../database/redis';
+import { prisma } from '../db';
+import { cacheManager } from '../db/redis';
 import { AnalyticsFiltersSchema } from '../validation/schemas';
 
 // Helper function to calculate case age in days from filed date
@@ -488,7 +488,7 @@ export async function getCourtAnalytics(courtId?: string): Promise<CourtAnalytic
   const courtsData = await prisma.court.findMany({
     where: courtId ? { id: courtId } : { isActive: true },
     include: {
-      cases: {
+      originalCases: {
         where: whereClause,
         select: {
           id: true,
@@ -502,7 +502,7 @@ export async function getCourtAnalytics(courtId?: string): Promise<CourtAnalytic
   const analytics: CourtAnalytics[] = [];
   
   for (const court of courtsData) {
-    const cases = court.cases;
+    const cases = court.originalCases;
     const totalCases = cases.length;
     const activeCases = cases.filter(c => c.status === 'ACTIVE').length;
     const resolvedCases = cases.filter(c => c.status === 'RESOLVED').length;

@@ -1,6 +1,6 @@
 /**
  * Batch Service Module
- * 
+ *
  * Handles all batch-related database operations including:
  * - Creating import batches
  * - Updating batch status
@@ -8,8 +8,9 @@
  * - Managing system user for imports
  */
 
-import { prisma, cacheManager } from '../database';
+import { prisma, cacheManager } from '../db';
 import { logger } from '../logger';
+import { batchRepository } from '../repositories/batch.repository';
 import type {
   BatchService,
   BatchCreationData,
@@ -33,21 +34,19 @@ export class BatchServiceImpl implements BatchService {
       // Ensure the user exists or create a placeholder
       await this.ensureUserExists(batchData.userId);
 
-      const importBatch = await prisma.dailyImportBatch.create({
-        data: {
-          importDate: new Date(),
-          filename: batchData.filename,
-          fileSize: batchData.fileSize,
-          fileChecksum: batchData.fileChecksum,
-          totalRecords: 0,
-          successfulRecords: 0,
-          failedRecords: 0,
-          errorLogs: [],
-          userConfig: {},
-          validationWarnings: [],
-          status: 'PENDING',
-          createdBy: batchData.userId,
-        },
+      const importBatch = await batchRepository.create({
+        importDate: new Date(),
+        filename: batchData.filename,
+        fileSize: batchData.fileSize,
+        fileChecksum: batchData.fileChecksum,
+        totalRecords: 0,
+        successfulRecords: 0,
+        failedRecords: 0,
+        errorLogs: [],
+        userConfig: {},
+        validationWarnings: [],
+        status: 'PENDING',
+        createdBy: batchData.userId,
       });
 
       logger.database.info('Import batch created successfully', {
@@ -73,13 +72,7 @@ export class BatchServiceImpl implements BatchService {
     try {
       logger.database.info('Updating batch status', { batchId, status });
 
-      await prisma.dailyImportBatch.update({
-        where: { id: batchId },
-        data: {
-          status,
-          ...(status === 'COMPLETED' || status === 'FAILED' ? { completedAt: new Date() } : {})
-        },
-      });
+      await batchRepository.updateStatus(batchId, status);
 
       logger.database.info('Batch status updated successfully', { batchId, status });
     } catch (error) {
@@ -105,23 +98,7 @@ export class BatchServiceImpl implements BatchService {
     try {
       logger.database.info('Updating batch with stats', { batchId, stats });
 
-      const updateData: any = {
-        status: stats.status,
-        totalRecords: stats.totalRecords,
-        successfulRecords: stats.successfulRecords,
-        failedRecords: stats.failedRecords,
-        errorLogs: stats.errorLogs || [],
-        ...(stats.status === 'COMPLETED' || stats.status === 'FAILED' ? { completedAt: new Date() } : {})
-      };
-
-      if (stats.emptyRowsSkipped !== undefined) {
-        updateData.emptyRowsSkipped = stats.emptyRowsSkipped;
-      }
-
-      await prisma.dailyImportBatch.update({
-        where: { id: batchId },
-        data: updateData,
-      });
+      await batchRepository.updateWithStats(batchId, stats);
 
       logger.database.info('Batch stats updated successfully', { batchId, stats });
     } catch (error) {
@@ -143,14 +120,7 @@ export class BatchServiceImpl implements BatchService {
         emptyRowsSkipped
       });
 
-      const updateData: any = {
-        emptyRowsSkipped
-      };
-
-      await prisma.dailyImportBatch.update({
-        where: { id: batchId },
-        data: updateData,
-      });
+      await batchRepository.updateWithEmptyRowStats(batchId, emptyRowsSkipped);
 
       logger.database.info('Batch empty row statistics updated successfully', {
         batchId,
@@ -173,9 +143,7 @@ export class BatchServiceImpl implements BatchService {
     try {
       logger.database.debug('Retrieving batch', { batchId });
 
-      const batch = await prisma.dailyImportBatch.findUnique({
-        where: { id: batchId },
-      });
+      const batch = await batchRepository.findById(batchId);
 
       if (!batch) {
         logger.database.debug('Batch not found', { batchId });
@@ -216,22 +184,14 @@ export class BatchServiceImpl implements BatchService {
     try {
       logger.database.debug('Retrieving batch history', { limit });
 
-      const batches = await prisma.dailyImportBatch.findMany({
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          user: {
-            select: { name: true, email: true },
-          },
-        },
-      });
+      const batches = await batchRepository.findHistory(limit);
 
       logger.database.debug('Batch history retrieved successfully', {
         count: batches.length,
         limit
       });
 
-      return batches.map(batch => ({
+      return batches.map((batch: any) => ({
         id: batch.id,
         importDate: batch.importDate,
         filename: batch.filename,
@@ -305,14 +265,7 @@ export class BatchServiceImpl implements BatchService {
 
       // Consider ANY previous import with the same checksum as a duplicate
       // This prevents importing the same file multiple times regardless of previous import status
-      const existingImport = await prisma.dailyImportBatch.findFirst({
-        where: {
-          fileChecksum: checksum,
-        },
-        orderBy: {
-          createdAt: 'desc' // Get the most recent import if there are multiple
-        }
-      });
+      const existingImport = await batchRepository.findByChecksum(checksum);
 
       if (existingImport) {
         logger.database.warn('Duplicate import found', {
@@ -353,41 +306,16 @@ export class BatchServiceImpl implements BatchService {
       logger.database.info('Getting import status', { batchId });
 
       // Always get database data first for complete information
-      const batch = await prisma.dailyImportBatch.findUnique({
-        where: { id: batchId },
-        select: {
-          status: true,
-          totalRecords: true,
-          successfulRecords: true,
-          failedRecords: true,
-          createdAt: true,
-          completedAt: true,
-          errorLogs: true,
-          emptyRowsSkipped: true,
-        },
-      }) as {
-        status: any;
-        totalRecords: number;
-        successfulRecords: number;
-        failedRecords: number;
-        createdAt: Date;
-        completedAt: Date | null;
-        errorLogs: any;
-        emptyRowsSkipped: number | null;
-      } | null;
+      const batch = await batchRepository.getImportStatus(batchId);
 
       if (!batch) {
         logger.database.info('Batch not found in database', { batchId });
 
         // For debugging, list recent batches
-        const recentBatches = await prisma.dailyImportBatch.findMany({
-          select: { id: true, filename: true, createdAt: true, status: true },
-          orderBy: { createdAt: 'desc' },
-          take: 5
-        });
+        const recentBatches = await batchRepository.findHistory(5);
 
         logger.database.debug(`Recent batches (${recentBatches.length} found)`,
-          recentBatches.map(b => `${b.id.substring(0, 8)}... (${b.filename}, ${b.status})`));
+          recentBatches.map((b: any) => `${b.id.substring(0, 8)}... (${b.filename}, ${b.status})`));
 
         throw new Error('Import batch not found');
       }

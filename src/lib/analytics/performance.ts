@@ -1,4 +1,4 @@
-import { prisma } from '../database';
+import { prisma } from '../db';
 import { Prisma } from '@prisma/client';
 
 // Performance metrics interfaces

@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/database/prisma';
-import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/db';
+import { withDevOnly, withDebugWarnings } from '@/lib/api/debug';
+import { withErrorHandler, DatabaseError } from '@/lib/errors/api-errors';
 
-export async function GET() {
-  // Skip debug endpoints in production build
-  if (process.env.NODE_ENV === 'production' && process.env.SKIP_DEBUG_ROUTES === 'true') {
-    return NextResponse.json(
-      { success: false, error: 'Debug endpoints disabled in production build' },
-      { status: 404 }
-    );
-  }
+async function batchesDebugHandler() {
 
   try {
     const batches = await prisma.dailyImportBatch.findMany({
@@ -33,14 +27,16 @@ export async function GET() {
       count: batches.length
     });
   } catch (error) {
-    logger.error('general', 'Error fetching batches:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch batches',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    if (error instanceof Error && error.message.includes('database')) {
+      throw new DatabaseError('Failed to fetch debug batch data');
+    }
+    throw error;
   }
 }
+
+// Export with all middleware layers
+export const GET = withDevOnly(
+  withDebugWarnings(
+    withErrorHandler(batchesDebugHandler, '/api/debug/batches')
+  )
+);

@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { redis, ImportJobData, AnalyticsJobData } from '../database/redis';
+import { importQueue, analyticsQueue, redis, type ImportJobData, type AnalyticsJobData } from '../db/redis';
 import { importService } from '../csv/import-service';
 import { refreshDashboardAnalytics, generateReport } from '../analytics/dashboard';
 import { logger } from '@/lib/logger';

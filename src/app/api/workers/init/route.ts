@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { initializeQueueWorkers, checkRedisConnection } from '@/lib/database/redis';
+import { initializeQueueWorkers, checkRedisConnection } from '@/lib/db/redis';
 
 export async function POST() {
   try {

@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withDevOnly } from '@/lib/api/debug';
 
-export async function GET(request: NextRequest) {
+async function testLogsGetHandler(request: NextRequest) {
   console.log('🧪 TEST LOGS: This is a test log message');
   console.log('🧪 TEST LOGS: Current time:', new Date().toISOString());
   console.log('🧪 TEST LOGS: Request URL:', request.url);
   
   return NextResponse.json({
     success: true,
-    message: 'Test logs endpoint working',
-    timestamp: new Date().toISOString()
+    message: 'Test logs endpoint working (development only)',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
   });
 }
 
-export async function POST(request: NextRequest) {
+async function testLogsPostHandler(request: NextRequest) {
   console.log('🧪 TEST LOGS: POST request received');
   
   try {
@@ -24,6 +26,11 @@ export async function POST(request: NextRequest) {
   
   return NextResponse.json({
     success: true,
-    message: 'POST test logs endpoint working'
+    message: 'POST test logs endpoint working (development only)',
+    environment: process.env.NODE_ENV
   });
 }
+
+// Secure endpoints with development-only middleware
+export const GET = withDevOnly(testLogsGetHandler, 'test-logs-get');
+export const POST = withDevOnly(testLogsPostHandler, 'test-logs-post');

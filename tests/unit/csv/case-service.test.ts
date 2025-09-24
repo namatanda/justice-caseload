@@ -68,11 +68,12 @@ describe('CaseService', () => {
     // Mock transaction object
     mockTx = {
       case: {
-        findUnique: vi.fn(),
+        findFirst: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
       },
       caseActivity: {
+        findFirst: vi.fn(),
         create: vi.fn(),
       },
       caseJudgeAssignment: {
@@ -135,7 +136,7 @@ describe('CaseService', () => {
   describe('createOrUpdateCase', () => {
     it('should create a new case when case does not exist', async () => {
       // Arrange
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
       mockTx.case.create.mockResolvedValue({
         id: 'new-case-id',
         caseNumber: 'CRL-12345',
@@ -175,7 +176,7 @@ describe('CaseService', () => {
         caseNumber: 'CRL-12345',
         totalActivities: 5,
       };
-      mockTx.case.findUnique.mockResolvedValue(existingCase);
+      mockTx.case.findFirst.mockResolvedValue(existingCase);
       mockTx.case.update.mockResolvedValue({
         ...existingCase,
         totalActivities: 6,
@@ -223,7 +224,7 @@ describe('CaseService', () => {
 
     it('should handle database errors during case creation', async () => {
       // Arrange
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
       mockTx.case.create.mockRejectedValue(new Error('Database error'));
 
       // Act & Assert
@@ -240,7 +241,7 @@ describe('CaseService', () => {
         female_applicant: null,
         organization_applicant: undefined,
       };
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
       mockTx.case.create.mockResolvedValue({
         id: 'new-case-id',
         caseNumber: 'CRL-12345',
@@ -456,21 +457,24 @@ describe('CaseService', () => {
         caseNumber: 'CRL-12345',
         status: 'ACTIVE',
       };
-      mockTx.case.findUnique.mockResolvedValue(expectedCase);
+      mockTx.case.findFirst.mockResolvedValue(expectedCase);
 
       // Act
       const result = await caseService.findExistingCase('CRL-12345', 'Test Court', mockTx);
 
       // Assert
       expect(result).toEqual(expectedCase);
-      expect(mockTx.case.findUnique).toHaveBeenCalledWith({
-        where: { caseNumber: 'CRL-12345' },
+      expect(mockTx.case.findFirst).toHaveBeenCalledWith({
+        where: {
+          caseNumber: 'CRL-12345',
+          courtName: 'Test Court'
+        },
       });
     });
 
     it('should return null when case does not exist', async () => {
       // Arrange
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
 
       // Act
       const result = await caseService.findExistingCase('NON-EXISTENT', 'Test Court', mockTx);
@@ -488,7 +492,7 @@ describe('CaseService', () => {
         .mockResolvedValueOnce({ judgeId: 'judge-1', isNewJudge: false })
         .mockResolvedValueOnce({ judgeId: 'judge-2', isNewJudge: true });
       
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
       mockTx.case.create.mockResolvedValue({
         id: 'new-case-id',
         caseNumber: 'CRL-12345',
@@ -532,7 +536,7 @@ describe('CaseService', () => {
 
     it('should handle judge assignment creation errors', async () => {
       // Arrange
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
       mockTx.case.create.mockResolvedValue({
         id: 'new-case-id',
         caseNumber: 'CRL-12345',
@@ -551,7 +555,7 @@ describe('CaseService', () => {
   describe('master data tracking', () => {
     it('should track master data when tracker is provided', async () => {
       // Arrange
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
       mockTx.case.create.mockResolvedValue({
         id: 'new-case-id',
         caseNumber: 'CRL-12345',
@@ -576,7 +580,7 @@ describe('CaseService', () => {
 
     it('should work without master data tracker', async () => {
       // Arrange
-      mockTx.case.findUnique.mockResolvedValue(null);
+      mockTx.case.findFirst.mockResolvedValue(null);
       mockTx.case.create.mockResolvedValue({
         id: 'new-case-id',
         caseNumber: 'CRL-12345',

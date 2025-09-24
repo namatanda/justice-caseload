@@ -5,13 +5,13 @@ import { Activity, CheckCircle2, FileText, Hourglass, Percent, ArrowUpRight, Cal
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { MobileHeader } from '@/components/redesigned/mobile-header';
-import { BottomNavigation } from '@/components/redesigned/bottom-navigation';
-import { KPICard } from '@/components/redesigned/kpi-card';
-import { MobileFilters } from '@/components/redesigned/mobile-filters';
-import { MobileChart } from '@/components/redesigned/mobile-chart';
+import { MobileHeader } from '@/components/features/dashboard/mobile-header';
+import { BottomNavigation } from '@/components/features/dashboard/bottom-navigation';
+import { KPICard } from '@/components/features/dashboard/kpi-card';
+import { MobileFilters } from '@/components/features/dashboard/mobile-filters';
+import { MobileChart } from '@/components/features/dashboard/mobile-chart';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/lib/hooks/use-mobile';
 
 // Types for dashboard data
 interface DashboardData {

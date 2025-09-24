@@ -6,7 +6,7 @@
  * This script tests CSV processing with minimal data to isolate the issue
  */
 
-import { prisma } from '../src/lib/database';
+import { prisma } from '../src/lib/db';
 import { processCsvImport, getOrCreateSystemUser } from '../src/lib/import/csv-processor';
 import { createHash } from 'crypto';
 import { writeFileSync } from 'fs';

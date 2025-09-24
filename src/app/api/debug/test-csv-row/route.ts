@@ -119,11 +119,11 @@ export async function GET() {
           validatedData: result.data
         });
       } else {
-        logger.info('general', `❌ ${testRow.name} validation failed:`, result.error.errors);
+        logger.info('general', `❌ ${testRow.name} validation failed:`, result.error.issues);
         results.push({
           name: testRow.name,
           success: false,
-          errors: result.error.errors,
+          errors: result.error.issues,
           rawData: testRow.data
         });
       }

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import logger from '../src/lib/logger';
-import { prisma } from '../src/lib/database/prisma';
+import { prisma } from '../src/lib/db/prisma';
 
 async function main() {
   try {

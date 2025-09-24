@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Redis, Cluster } from 'ioredis';
-import { checkRedisConnection, isRedisCluster } from '@/lib/database/redis-cluster';
-import { cacheManager, sessionManager, rateLimiter } from '@/lib/database/redis';
-import { importQueue, analyticsQueue } from '@/lib/database/redis';
+import { checkRedisConnection, isRedisCluster } from '@/lib/db/redis-cluster';
+import { cacheManager, sessionManager, rateLimiter } from '@/lib/db/redis';
+import { importQueue, analyticsQueue } from '@/lib/db/redis';
 
 // Mock logger to avoid console output during tests
 vi.mock('@/lib/logger', () => ({
@@ -40,7 +40,7 @@ describe('Redis Cluster Integration Tests', () => {
     });
 
     it('should detect Redis cluster mode correctly', async () => {
-      const { redis } = await import('@/lib/database/redis');
+      const { redis } = await import('@/lib/db/redis');
       const isCluster = isRedisCluster(redis);
       expect(typeof isCluster).toBe('boolean');
     });

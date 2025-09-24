@@ -4,7 +4,7 @@
  * Adds comprehensive verification to ensure uploads actually persist
  */
 
-import { prisma } from '../database';
+import { prisma } from '../db';
 import { logger } from '@/lib/logger';
 import type { ImportStatus } from '@prisma/client';
 

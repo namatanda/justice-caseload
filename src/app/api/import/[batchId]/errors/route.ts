@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { requireAuth } from '@/lib/middleware/auth';
+import { requireAuth } from '@/lib/auth';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
+    const { batchId } = await params;
     // Authentication check (consistent with existing import APIs)
     // const authResult = await requireAuth(request);
     // if (authResult instanceof NextResponse) {
     //   return authResult;
     // }
 
-    const { batchId } = params;
     if (!batchId) {
       return NextResponse.json({ error: 'Batch ID is required' }, { status: 400 });
     }
@@ -103,7 +101,6 @@ export async function GET(
   } catch (error) {
     logger.api.error('Error fetching import errors', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
+  // Note: No need to disconnect when using singleton Prisma instance
 }

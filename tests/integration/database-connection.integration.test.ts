@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { vi } from 'vitest';
-import { prisma } from '../../src/lib/database';
+import { prisma } from '../../src/lib/db';
 import logger from '../../src/lib/logger';
 
 vi.mock('../../src/lib/logger', () => ({

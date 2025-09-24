@@ -1,6 +1,6 @@
 import { Prisma, Case, CaseActivity, CaseStatus } from '@prisma/client';
-import { prisma, withTransaction, PrismaTransaction } from '../database';
-import { cacheManager } from '../database/redis';
+import { prisma, withTransaction, PrismaTransaction } from '../db';
+import { cacheManager } from '../db/redis';
 import { logger } from '@/lib/logger';
 import { 
   CreateCaseSchema, 

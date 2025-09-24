@@ -27,11 +27,21 @@ const buildDatabaseUrl = (baseUrl: string) => {
   return url.toString();
 };
 
+// Get database URL with fallback for tests
+const getDatabaseUrl = () => {
+  const baseUrl = process.env.DATABASE_URL;
+  if (!baseUrl) {
+    // Fallback for tests or when DATABASE_URL is not set
+    return 'postgresql://test:test@localhost:5432/test';
+  }
+  return buildDatabaseUrl(baseUrl);
+};
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: prismaLog,
   datasources: {
     db: {
-      url: buildDatabaseUrl(process.env.DATABASE_URL!),
+      url: getDatabaseUrl(),
     },
   },
 });

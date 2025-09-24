@@ -1,6 +1,6 @@
 import { logger } from '../logger';
 import { csvParser, validator, importService, batchService, jobService } from '../csv';
-import { getQueueStats } from '../database';
+import { getQueueStats } from '../db';
 import { batchInsert } from './db-operations';
 import type { CaseReturnRow } from '../validation/schemas';
 

@@ -1,7 +1,7 @@
 // scripts/clear-redis.ts
 import { Redis } from 'ioredis';
-import { importQueue, analyticsQueue } from '../src/lib/database/redis';
-import { logger } from '../src/lib/logger';
+import { importQueue, analyticsQueue } from '../../../src/lib/db/redis';
+import { logger } from '../../../src/lib/logger';
 
 async function clearAllRedisData() {
   const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');

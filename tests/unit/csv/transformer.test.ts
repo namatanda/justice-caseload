@@ -97,7 +97,7 @@ describe('CsvDataTransformer', () => {
       expect(result.caseNumber).toBe('SC-123');
       expect(result.caseTypeId).toBe('CIVIL');
       expect(result.filedDate.getFullYear()).toBe(2023);
-      expect(result.filedDate.getMonth()).toBe(6); // July (0-indexed)
+      expect(result.filedDate.getMonth()).toBe(5); // June (0-indexed)
       expect(result.filedDate.getDate()).toBe(15);
       expect(result.originalCourtId).toBeUndefined();
       expect(result.originalCaseNumber).toBe('ORIG-456');
@@ -219,7 +219,7 @@ describe('CsvDataTransformer', () => {
   describe('transformToActivity', () => {
     const validRow: CaseReturnRow = {
       date_dd: 20,
-      date_mon: 6,
+      date_mon: 'Jun',
       date_yyyy: 2023,
       judge_1: 'Judge Smith',
       judge_2: 'Judge Jones',
@@ -255,13 +255,13 @@ describe('CsvDataTransformer', () => {
 
       expect(result.caseId).toBe('case-123');
       expect(result.activityDate.getFullYear()).toBe(2023);
-      expect(result.activityDate.getMonth()).toBe(6); // July (0-indexed)
+      expect(result.activityDate.getMonth()).toBe(5); // June (0-indexed)
       expect(result.activityDate.getDate()).toBe(20);
       expect(result.activityType).toBe('Hearing');
       expect(result.outcome).toBe('Adjourned');
       expect(result.reasonForAdjournment).toBe('Missing witness');
       expect(result.nextHearingDate?.getFullYear()).toBe(2023);
-      expect(result.nextHearingDate?.getMonth()).toBe(6); // July (0-indexed)
+      expect(result.nextHearingDate?.getMonth()).toBe(5); // June (0-indexed)
       expect(result.nextHearingDate?.getDate()).toBe(25);
       expect(result.primaryJudgeId).toBe(''); // Will be set by service layer
       expect(result.hasLegalRepresentation).toBe(true);

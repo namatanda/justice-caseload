@@ -1,5 +1,5 @@
 import { Judge, Court, CaseType, User, CourtType, UserRole } from '@prisma/client';
-import { prisma } from '../database';
+import { prisma } from '../db';
 import { logger } from '@/lib/logger';
 import { 
   CreateJudgeSchema, 

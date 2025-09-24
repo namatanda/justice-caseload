@@ -1,5 +1,5 @@
 import path from 'path';
-import { initiateDailyImport, processCsvImport } from '../src/lib/import/csv-processor';
+import { initiateDailyImportLegacy, processCsvImport } from '../src/lib/import/csv-processor';
 import fs from 'fs';
 
 async function main() {
@@ -21,18 +21,11 @@ async function main() {
   const filename = path.basename(csvPath);
   const userId = process.env.TEST_IMPORT_USER || 'script-user';
 
-  const { batchId } = await initiateDailyImport(csvPath, filename, fileSize, userId);
+  const { batchId } = await initiateDailyImportLegacy(csvPath, filename, fileSize, userId);
   console.log('Created import batch:', batchId);
 
   // Run processor (this will write to DB and use the real cache/redis if configured)
-  await processCsvImport({
-    filePath: csvPath,
-    filename,
-    fileSize,
-    checksum: 'full-demo-checksum',
-    userId,
-    batchId,
-  }, { dryRun: false });
+  await processCsvImport(csvPath, filename, userId);
 
   console.log('Full import completed.');
 }

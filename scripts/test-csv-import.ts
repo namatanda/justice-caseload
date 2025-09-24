@@ -88,7 +88,7 @@ async function testCsvImport() {
       console.log('✅ Row validation: PASSED');
     } else {
       console.log('❌ Row validation: FAILED');
-      console.log('Validation errors:', validation.error.errors);
+      console.log('Validation errors:', validation.error.issues);
     }
 
     // Test multiple rows
@@ -127,7 +127,7 @@ async function testCsvImport() {
         console.log(`  Row ${i}: ✅ Valid (${rowObj.caseid_type}${rowObj.caseid_no})`);
       } else {
         invalidRows++;
-        const firstError = rowValidation.error.errors[0];
+        const firstError = rowValidation.error.issues[0];
         console.log(`  Row ${i}: ❌ Invalid - Field: ${firstError?.path?.join('.')}, Error: ${firstError?.message}`);
         console.log(`    Raw value: ${JSON.stringify(rowObj[firstError?.path?.[0] as string])}`);
       }

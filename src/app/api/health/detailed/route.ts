@@ -159,7 +159,7 @@ async function gatherComprehensiveHealthData() {
 
 async function checkDatabaseConnection(): Promise<boolean> {
   try {
-    const { prisma } = await import('@/lib/database');
+    const { prisma } = await import('@/lib/db');
     await prisma.$queryRaw`SELECT 1`;
     return true;
   } catch {
@@ -169,7 +169,7 @@ async function checkDatabaseConnection(): Promise<boolean> {
 
 async function getDatabasePoolStats() {
   try {
-    const { getConnectionStatistics, getPoolHealthStatus } = await import('@/lib/database');
+    const { getConnectionStatistics, getPoolHealthStatus } = await import('@/lib/db');
     const stats = await getConnectionStatistics();
     const health = await getPoolHealthStatus();
 
@@ -186,7 +186,7 @@ async function getDatabasePoolStats() {
 
 async function getDatabaseStats() {
   try {
-    const { getDatabaseStats } = await import('@/lib/database');
+    const { getDatabaseStats } = await import('@/lib/db');
     return await getDatabaseStats();
   } catch {
     return null;
@@ -195,7 +195,7 @@ async function getDatabaseStats() {
 
 async function getDatabasePerformance() {
   try {
-    const { getDatabasePerformanceReport } = await import('@/lib/database');
+    const { getDatabasePerformanceReport } = await import('@/lib/db');
     return await getDatabasePerformanceReport();
   } catch {
     return null;
@@ -204,7 +204,7 @@ async function getDatabasePerformance() {
 
 async function checkRedisConnection(): Promise<boolean> {
   try {
-    const { checkRedisConnection } = await import('@/lib/database');
+    const { checkRedisConnection } = await import('@/lib/db');
     return await checkRedisConnection();
   } catch {
     return false;
@@ -213,8 +213,8 @@ async function checkRedisConnection(): Promise<boolean> {
 
 async function getRedisMode(): Promise<string> {
   try {
-    const { redis } = await import('@/lib/database');
-    const { isRedisCluster } = await import('@/lib/database/redis-cluster');
+    const { redis } = await import('@/lib/db');
+    const { isRedisCluster } = await import('@/lib/db/redis-cluster');
     return isRedisCluster(redis) ? 'Cluster' : 'Single Instance';
   } catch {
     return 'Unknown';
@@ -223,7 +223,7 @@ async function getRedisMode(): Promise<string> {
 
 async function getQueueStats() {
   try {
-    const { getQueueStats } = await import('@/lib/database');
+    const { getQueueStats } = await import('@/lib/db');
     return await getQueueStats();
   } catch {
     return { import: {}, analytics: {} };

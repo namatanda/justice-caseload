@@ -16,6 +16,7 @@ export * from './batch-service';
 export * from './case-service';
 export * from './job-service';
 export * from './import-service';
+export * from './health-service';
 
 // Re-export commonly used types for convenience
 export type {

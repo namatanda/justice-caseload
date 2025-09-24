@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getMetrics } from '@/lib/metrics';
-import { withMetrics } from '@/lib/metrics-middleware';
+import { withMetrics } from '@/lib/api';
 
 async function getMetricsHandler() {
   try {
